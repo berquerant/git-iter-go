@@ -21,7 +21,7 @@ run = "go fix -diff ./..."
 run = "go vet ./..."
 
 [tasks.golangci-lint]
-run = "golangci-lint run"
+run = "golangci-lint run --no-config"
 
 [tasks.test]
 run = "go test -cover -race ./..."

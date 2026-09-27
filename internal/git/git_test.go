@@ -81,7 +81,7 @@ func TestCommand_IsDirty(t *testing.T) {
 				if tt.runErr != nil {
 					return tt.runErr
 				}
-				fmt.Fprint(stdout, tt.output)
+				_, _ = fmt.Fprint(stdout, tt.output)
 				return nil
 			})
 
@@ -102,7 +102,7 @@ func TestCommand_CurrentBranch(t *testing.T) {
 
 	fake := newFakeRunner()
 	fake.on("branch", func(_ []string, stdout, _ io.Writer) error {
-		fmt.Fprintln(stdout, "feat/issue-1")
+		_, _ = fmt.Fprintln(stdout, "feat/issue-1")
 		return nil
 	})
 
@@ -168,14 +168,14 @@ func TestCommand_ResolveDefaultBranch(t *testing.T) {
 			fake := newFakeRunner()
 			fake.on("symbolic-ref", func(_ []string, stdout, _ io.Writer) error {
 				if tt.originHead != "" {
-					fmt.Fprintln(stdout, tt.originHead)
+					_, _ = fmt.Fprintln(stdout, tt.originHead)
 					return nil
 				}
 				return fmt.Errorf("no symbolic-ref")
 			})
 			fake.on("config", func(_ []string, stdout, _ io.Writer) error {
 				if tt.initBranch != "" {
-					fmt.Fprintln(stdout, tt.initBranch)
+					_, _ = fmt.Fprintln(stdout, tt.initBranch)
 					return nil
 				}
 				return fmt.Errorf("no config")
@@ -232,7 +232,7 @@ func TestCommand_RemoteURL(t *testing.T) {
 				if tt.runErr != nil {
 					return tt.runErr
 				}
-				fmt.Fprint(stdout, tt.output)
+				_, _ = fmt.Fprint(stdout, tt.output)
 				return nil
 			})
 

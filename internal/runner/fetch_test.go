@@ -74,7 +74,7 @@ func TestFetchRunner(t *testing.T) {
 			fake := newCustomFakeRunner()
 			fake.on("symbolic-ref", func(_ []string, stdout, _ io.Writer) error {
 				if tt.originHead != "" {
-					fmt.Fprintln(stdout, tt.originHead)
+					_, _ = fmt.Fprintln(stdout, tt.originHead)
 					return nil
 				}
 				return fmt.Errorf("no ref")

@@ -189,19 +189,19 @@ func TestPullRunner(t *testing.T) {
 
 			fake := newCustomFakeRunner()
 			fake.on("branch", func(_ []string, stdout, _ io.Writer) error {
-				fmt.Fprintln(stdout, tt.currentBranch)
+				_, _ = fmt.Fprintln(stdout, tt.currentBranch)
 				return nil
 			})
 			fake.on("symbolic-ref", func(_ []string, stdout, _ io.Writer) error {
 				if tt.originHead != "" {
-					fmt.Fprintln(stdout, tt.originHead)
+					_, _ = fmt.Fprintln(stdout, tt.originHead)
 					return nil
 				}
 				return fmt.Errorf("no symbolic-ref")
 			})
 			fake.on("config", func(_ []string, stdout, _ io.Writer) error {
 				if tt.initBranch != "" {
-					fmt.Fprintln(stdout, tt.initBranch)
+					_, _ = fmt.Fprintln(stdout, tt.initBranch)
 					return nil
 				}
 				return fmt.Errorf("no config")
@@ -219,7 +219,7 @@ func TestPullRunner(t *testing.T) {
 				if tt.pullErr != nil {
 					return tt.pullErr
 				}
-				fmt.Fprintln(stdout, "Already up to date.")
+				_, _ = fmt.Fprintln(stdout, "Already up to date.")
 				return nil
 			})
 
@@ -247,7 +247,7 @@ func TestPullRunner_CustomGitBin(t *testing.T) {
 
 	fake := newCustomFakeRunner()
 	fake.on("pull", func(_ []string, stdout, _ io.Writer) error {
-		fmt.Fprintln(stdout, "ok")
+		_, _ = fmt.Fprintln(stdout, "ok")
 		return nil
 	})
 

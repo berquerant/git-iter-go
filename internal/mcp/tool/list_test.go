@@ -33,11 +33,11 @@ func TestRegisterList(t *testing.T) {
 
 	serverSession, err := server.Connect(ctx, t1, nil)
 	require.NoError(t, err)
-	defer serverSession.Close()
+	defer func() { _ = serverSession.Close() }()
 
 	clientSession, err := client.Connect(ctx, t2, nil)
 	require.NoError(t, err)
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	t.Run("list with pattern", func(t *testing.T) {
 		res, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{

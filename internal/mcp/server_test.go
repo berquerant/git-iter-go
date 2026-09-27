@@ -38,11 +38,11 @@ func TestMcpServer_Tools(t *testing.T) {
 
 	serverSession, err := server.Connect(ctx, t1, nil)
 	require.NoError(t, err)
-	defer serverSession.Close()
+	defer func() { _ = serverSession.Close() }()
 
 	clientSession, err := client.Connect(ctx, t2, nil)
 	require.NoError(t, err)
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	t.Run("list tools with do enabled", func(t *testing.T) {
 		res, err := clientSession.ListTools(ctx, nil)
@@ -68,12 +68,12 @@ func TestMcpServer_Tools(t *testing.T) {
 
 		sSession, err := defaultServer.Connect(ctx, st1, nil)
 		require.NoError(t, err)
-		defer sSession.Close()
+		defer func() { _ = sSession.Close() }()
 
 		defaultClient := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client-2", Version: "v1.0.0"}, nil)
 		cSession, err := defaultClient.Connect(ctx, ct1, nil)
 		require.NoError(t, err)
-		defer cSession.Close()
+		defer func() { _ = cSession.Close() }()
 
 		res, err := cSession.ListTools(ctx, nil)
 		require.NoError(t, err)
