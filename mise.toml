@@ -1,0 +1,48 @@
+[tools]
+go = "1.27.1"
+"go:github.com/google/go-licenses/v2" = "v2.0.1"
+golangci-lint = "2.13.2"
+
+[env]
+LICENSES_IGNORE = "github.com/berquerant/git-iter-go/"
+LICENSES_NOTICE = "NOTICE"
+TARGET = "./cmd/git-iter"
+
+[tasks.default]
+depends = ["lint", "test", "build"]
+
+[tasks.lint]
+depends = ["fix", "vet", "golangci-lint", "licenses"]
+
+[tasks.fix]
+run = "go fix -diff ./..."
+
+[tasks.vet]
+run = "go vet ./..."
+
+[tasks.golangci-lint]
+run = "golangci-lint run"
+
+[tasks.test]
+run = "go test -cover -race ./..."
+
+[tasks.build]
+run = "go build -o bin/git-iter ${TARGET}"
+
+[tasks.licenses-gen]
+run = """
+go-licenses report ${TARGET} --ignore \"${LICENSES_IGNORE}\" --template notice-template.md > ${LICENSES_NOTICE}
+"""
+
+[tasks.licenses-diff]
+depends = ["licenses-gen"]
+run = "git diff --exit-code ${LICENSES_NOTICE}"
+
+[tasks.licenses-check]
+depends = ["licenses-diff"]
+run = """
+go-licenses check ${TARGET} --ignore \"${LICENSES_IGNORE}\"
+"""
+
+[tasks.licenses]
+depends = ["licenses-check"]

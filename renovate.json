@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>berquerant/renovate-config"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "addLabels": [
+        "go"
+      ],
+      "description": "Group go dependencies",
+      "groupName": "go({{updateType}})",
+      "matchDatasources": [
+        "go"
+      ]
+    }
+  ],
+  "postUpdateOptions": [
+    "gomodTidy"
+  ]
+}

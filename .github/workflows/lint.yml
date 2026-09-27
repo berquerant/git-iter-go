@@ -1,0 +1,38 @@
+name: Lint
+
+permissions: {}
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup mise
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      - name: Run Lint
+        run: mise run lint
+
+  govulncheck:
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: berquerant/govulncheck-action@7c7f559180aca72a1badcead05a3d5d81fc95c30 # v1.0.3
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum

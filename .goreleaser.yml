@@ -1,0 +1,45 @@
+version: 2
+
+builds:
+  - main: ./cmd/git-iter
+    id: git-iter
+    binary: git-iter
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - 7
+    flags:
+      - -v
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/berquerant/git-iter-go/version.Version={{.Version}}
+      - -X github.com/berquerant/git-iter-go/version.Commit={{.Commit}}
+      - -X github.com/berquerant/git-iter-go/version.Date={{.Date}}
+
+archives:
+  - formats: binary
+    id: git-iter
+    files:
+      - NOTICE
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  prerelease: auto
+  use_existing_draft: true
