@@ -293,45 +293,75 @@ func TestSubcommands_Help(t *testing.T) {
 }
 
 func TestConflictingFilterFlags(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	c := cmd.NewRootCmd()
-	c.SetOut(&stdout)
-	c.SetErr(&stderr)
-	c.SetArgs([]string{"--repos-root", t.TempDir(), "--dirty-only", "--clean-only", "list"})
-	err := c.ExecuteContext(context.Background())
-	require.Error(t, err)
-	assert.ErrorIs(t, err, cmd.ErrConflictingFilterFlags)
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		flags   []string
+		wantErr error
+	}{
+		{
+			name:    "dirty and clean only conflict",
+			flags:   []string{"--dirty-only", "--clean-only"},
+			wantErr: cmd.ErrConflictingFilterFlags,
+		},
+		{
+			name:    "default branch and not default branch only conflict",
+			flags:   []string{"--default-branch-only", "--not-default-branch-only"},
+			wantErr: cmd.ErrConflictingBranchFlags,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			c := cmd.NewRootCmd()
+			c.SetOut(&stdout)
+			c.SetErr(&stderr)
+			args := append([]string{"--repos-root", t.TempDir()}, tt.flags...)
+			args = append(args, "list")
+			c.SetArgs(args)
+			err := c.ExecuteContext(context.Background())
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.wantErr)
+		})
+	}
 }
 
-func TestConflictingBranchFlags(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	c := cmd.NewRootCmd()
-	c.SetOut(&stdout)
-	c.SetErr(&stderr)
-	c.SetArgs([]string{"--repos-root", t.TempDir(), "--default-branch-only", "--not-default-branch-only", "list"})
-	err := c.ExecuteContext(context.Background())
-	require.Error(t, err)
-	assert.ErrorIs(t, err, cmd.ErrConflictingBranchFlags)
-}
+func TestInvalidRegexFlags(t *testing.T) {
+	t.Parallel()
 
-func TestInvalidRemoteURLRegex(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	c := cmd.NewRootCmd()
-	c.SetOut(&stdout)
-	c.SetErr(&stderr)
-	c.SetArgs([]string{"--repos-root", t.TempDir(), "--remote-url", "[invalid(", "list"})
-	err := c.ExecuteContext(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid remote-url regex")
-}
+	tests := []struct {
+		name        string
+		flags       []string
+		errContains string
+	}{
+		{
+			name:        "invalid remote-url regex",
+			flags:       []string{"--remote-url", "[invalid("},
+			errContains: "invalid remote-url regex",
+		},
+		{
+			name:        "invalid branch regex",
+			flags:       []string{"--branch", "[invalid("},
+			errContains: "invalid branch regex",
+		},
+	}
 
-func TestInvalidBranchRegex(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-	c := cmd.NewRootCmd()
-	c.SetOut(&stdout)
-	c.SetErr(&stderr)
-	c.SetArgs([]string{"--repos-root", t.TempDir(), "--branch", "[invalid(", "list"})
-	err := c.ExecuteContext(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid branch regex")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			c := cmd.NewRootCmd()
+			c.SetOut(&stdout)
+			c.SetErr(&stderr)
+			args := append([]string{"--repos-root", t.TempDir()}, tt.flags...)
+			args = append(args, "list")
+			c.SetArgs(args)
+			err := c.ExecuteContext(context.Background())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContains)
+		})
+	}
 }
