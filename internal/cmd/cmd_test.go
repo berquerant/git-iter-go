@@ -13,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	testutil.RunTestMain(m)
-}
 
 func TestNoRepoSource(t *testing.T) {
 	t.Parallel()

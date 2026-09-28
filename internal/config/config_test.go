@@ -6,15 +6,11 @@ import (
 	"time"
 
 	"github.com/berquerant/git-iter-go/internal/config"
-	"github.com/berquerant/git-iter-go/testutil"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	testutil.RunTestMain(m)
-}
 
 func TestParseLogLevel(t *testing.T) {
 	t.Parallel()
