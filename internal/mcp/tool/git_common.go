@@ -11,29 +11,16 @@ import (
 )
 
 type gitCommandToolParams struct {
-	reposRoot   string
-	patterns    []string
-	sortAsc     bool
-	sortDesc    bool
-	limit       int
-	dirtyOnly   bool
-	cleanOnly   bool
-	remoteURL   string
-	timeout     string
-	maxProcs    int
+	Discovery   RepoDiscoveryInput
+	Status      RepoStatusFilterInput
+	Exec        ProcessExecInput
 	commandFunc func(g *git.Command) []string
 }
 
 func executeGitCommandTool(ctx context.Context, cfg *config.Config, p gitCommandToolParams) ([]output.Result, error) {
 	finder, root, err := buildFinder(cfg, finderParams{
-		reposRoot: p.reposRoot,
-		patterns:  p.patterns,
-		sortAsc:   p.sortAsc,
-		sortDesc:  p.sortDesc,
-		limit:     p.limit,
-		dirtyOnly: p.dirtyOnly,
-		cleanOnly: p.cleanOnly,
-		remoteURL: p.remoteURL,
+		Discovery: p.Discovery,
+		Status:    p.Status,
 	})
 	if err != nil {
 		return nil, err
@@ -44,7 +31,7 @@ func executeGitCommandTool(ctx context.Context, cfg *config.Config, p gitCommand
 		return nil, fmt.Errorf("find repositories: %w", err)
 	}
 
-	timeout, err := resolveTimeout(p.timeout, cfg)
+	timeout, err := resolveTimeout(p.Exec.Timeout, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +44,7 @@ func executeGitCommandTool(ctx context.Context, cfg *config.Config, p gitCommand
 	cmd := p.commandFunc(g)
 
 	tasks := buildProcessTasks(paths, root, cmd)
-	return executeTasksCollect(ctx, tasks, resolveProcs(p.maxProcs, cfg), timeout)
+	return executeTasksCollect(ctx, tasks, resolveProcs(p.Exec.MaxProcs, cfg), timeout)
 }
 
 func registerGitCmdTool[I any, O any](

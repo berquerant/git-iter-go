@@ -13,16 +13,10 @@ import (
 
 // GrepToolInput defines parameters for git_iter_grep tool.
 type GrepToolInput struct {
-	GrepArgs    []string `json:"grep_args" jsonschema:"arguments passed to git grep (patterns, flags)"`
-	Patterns    []string `json:"patterns,omitempty" jsonschema:"repository path filter regular expressions"`
-	ReposRoot   string   `json:"repos_root,omitempty" jsonschema:"root directory to scan for repositories"`
-	AbsPath     bool     `json:"abs_path,omitempty" jsonschema:"show absolute paths instead of relative in grep results"`
-	MaxProcs    int      `json:"max_procs,omitempty" jsonschema:"maximum parallel processes (default 1)"`
-	Timeout     string   `json:"timeout,omitempty" jsonschema:"per-process execution timeout (e.g. 5s, 1m)"`
-	Sort        bool     `json:"sort,omitempty" jsonschema:"sort repository paths in ascending order"`
-	SortReverse bool     `json:"sort_reverse,omitempty" jsonschema:"sort repository paths in descending order"`
-	Limit       int      `json:"limit,omitempty" jsonschema:"limit number of processed repositories"`
-	RemoteURL   string   `json:"remote_url,omitempty" jsonschema:"filter repositories by origin remote URL regex"`
+	GrepArgs []string `json:"grep_args" jsonschema:"arguments passed to git grep (patterns, flags)"`
+	AbsPath  bool     `json:"abs_path,omitempty" jsonschema:"show absolute paths instead of relative in grep results"`
+	RepoDiscoveryInput
+	ProcessExecInput
 }
 
 // GrepToolOutput defines output for git_iter_grep tool.
@@ -45,12 +39,7 @@ func RegisterGrep(server *mcpsdk.Server, cfg *config.Config) {
 		}
 
 		finder, root, err := buildFinder(cfg, finderParams{
-			reposRoot: in.ReposRoot,
-			patterns:  in.Patterns,
-			sortAsc:   in.Sort,
-			sortDesc:  in.SortReverse,
-			limit:     in.Limit,
-			remoteURL: in.RemoteURL,
+			Discovery: in.RepoDiscoveryInput,
 		})
 		if err != nil {
 			return nil, GrepToolOutput{}, err

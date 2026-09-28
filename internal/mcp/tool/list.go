@@ -11,12 +11,7 @@ import (
 
 // ListToolsInput defines parameters for git_iter_list tool.
 type ListToolsInput struct {
-	Patterns    []string `json:"patterns,omitempty" jsonschema:"repository path filter regular expressions"`
-	ReposRoot   string   `json:"repos_root,omitempty" jsonschema:"root directory to scan for repositories"`
-	Sort        bool     `json:"sort,omitempty" jsonschema:"sort repository paths in ascending order"`
-	SortReverse bool     `json:"sort_reverse,omitempty" jsonschema:"sort repository paths in descending order"`
-	Limit       int      `json:"limit,omitempty" jsonschema:"limit number of processed repositories"`
-	RemoteURL   string   `json:"remote_url,omitempty" jsonschema:"filter repositories by origin remote URL regex"`
+	RepoDiscoveryInput
 }
 
 // ListToolsOutput defines output for git_iter_list tool.
@@ -35,12 +30,7 @@ func RegisterList(server *mcpsdk.Server, cfg *config.Config) {
 		in ListToolsInput,
 	) (*mcpsdk.CallToolResult, ListToolsOutput, error) {
 		finder, root, err := buildFinder(cfg, finderParams{
-			reposRoot: in.ReposRoot,
-			patterns:  in.Patterns,
-			sortAsc:   in.Sort,
-			sortDesc:  in.SortReverse,
-			limit:     in.Limit,
-			remoteURL: in.RemoteURL,
+			Discovery: in.RepoDiscoveryInput,
 		})
 		if err != nil {
 			return nil, ListToolsOutput{}, err

@@ -306,3 +306,252 @@ func TestRemoteURLFilterFinder_Errors(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+type fakeBranchChecker struct {
+	currentMap map[string]string
+	defaultMap map[string]string
+	currentErr error
+	defaultErr error
+}
+
+func (f *fakeBranchChecker) CurrentBranch(_ context.Context, dir string) (string, error) {
+	if f.currentErr != nil {
+		return "", f.currentErr
+	}
+	return f.currentMap[dir], nil
+}
+
+func (f *fakeBranchChecker) ResolveDefaultBranch(_ context.Context, dir string) (string, error) {
+	if f.defaultErr != nil {
+		return "", f.defaultErr
+	}
+	return f.defaultMap[dir], nil
+}
+
+func TestDefaultBranchFilterFinder(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{"/repos/on-default", "/repos/on-feature", "/repos/detached"}
+	checker := &fakeBranchChecker{
+		currentMap: map[string]string{
+			"/repos/on-default": "main",
+			"/repos/on-feature": "feat/xyz",
+			"/repos/detached":   "",
+		},
+		defaultMap: map[string]string{
+			"/repos/on-default": "main",
+			"/repos/on-feature": "main",
+			"/repos/detached":   "main",
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		defaultBranchOnly    bool
+		notDefaultBranchOnly bool
+		want                 []string
+	}{
+		{
+			name:              "default branch only filters to repo on default branch",
+			defaultBranchOnly: true,
+			want:              []string{"/repos/on-default"},
+		},
+		{
+			name:                 "not default branch only filters to repos not on default branch",
+			notDefaultBranchOnly: true,
+			want:                 []string{"/repos/on-feature", "/repos/detached"},
+		},
+		{
+			name: "neither passes all through",
+			want: paths,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := &testutil.FakeFinder{Paths: paths}
+			f := repo.NewDefaultBranchFilterFinder(base, checker, tt.defaultBranchOnly, tt.notDefaultBranchOnly)
+			got, err := f.Find(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestDefaultBranchFilterFinder_Errors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		finder  func(t *testing.T) repo.Finder
+		ctxFunc func(t *testing.T) context.Context
+	}{
+		{
+			name: "inner finder error",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.DefaultBranchFilterFinder{
+					Inner:       &testutil.FakeFinder{Err: errors.New("find err")},
+					DefaultOnly: true,
+				}
+			},
+		},
+		{
+			name: "current branch error",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.DefaultBranchFilterFinder{
+					Inner:       &testutil.FakeFinder{Paths: []string{"/repo"}},
+					Checker:     &fakeBranchChecker{currentErr: errors.New("branch err")},
+					DefaultOnly: true,
+				}
+			},
+		},
+		{
+			name: "resolve default branch error",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.DefaultBranchFilterFinder{
+					Inner:       &testutil.FakeFinder{Paths: []string{"/repo"}},
+					Checker:     &fakeBranchChecker{defaultErr: errors.New("default branch err")},
+					DefaultOnly: true,
+				}
+			},
+		},
+		{
+			name: "context cancelled",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.DefaultBranchFilterFinder{
+					Inner:       &testutil.FakeFinder{Paths: []string{"/repo"}},
+					DefaultOnly: true,
+				}
+			},
+			ctxFunc: func(_ *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			if tt.ctxFunc != nil {
+				ctx = tt.ctxFunc(t)
+			}
+			f := tt.finder(t)
+			_, err := f.Find(ctx)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestBranchFilterFinder(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{"/repos/main", "/repos/feat-auth", "/repos/fix-bug", "/repos/detached"}
+	checker := &fakeBranchChecker{
+		currentMap: map[string]string{
+			"/repos/main":      "main",
+			"/repos/feat-auth": "feature/auth",
+			"/repos/fix-bug":   "bugfix/issue-123",
+			"/repos/detached":  "",
+		},
+	}
+
+	tests := []struct {
+		name    string
+		pattern *regexp.Regexp
+		want    []string
+	}{
+		{
+			name:    "match feature branches",
+			pattern: regexp.MustCompile(`^feature/`),
+			want:    []string{"/repos/feat-auth"},
+		},
+		{
+			name:    "match feature or bugfix branches",
+			pattern: regexp.MustCompile(`^(feature|bugfix)/`),
+			want:    []string{"/repos/feat-auth", "/repos/fix-bug"},
+		},
+		{
+			name:    "no match",
+			pattern: regexp.MustCompile(`^release/`),
+			want:    nil,
+		},
+		{
+			name:    "nil pattern passes all through",
+			pattern: nil,
+			want:    paths,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := &testutil.FakeFinder{Paths: paths}
+			f := repo.NewBranchFilterFinder(base, checker, tt.pattern)
+			got, err := f.Find(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBranchFilterFinder_Errors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		finder  func(t *testing.T) repo.Finder
+		ctxFunc func(t *testing.T) context.Context
+	}{
+		{
+			name: "inner finder error",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.BranchFilterFinder{
+					Inner:   &testutil.FakeFinder{Err: errors.New("find err")},
+					Pattern: regexp.MustCompile("foo"),
+				}
+			},
+		},
+		{
+			name: "checker error",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.BranchFilterFinder{
+					Inner:   &testutil.FakeFinder{Paths: []string{"/repo"}},
+					Checker: &fakeBranchChecker{currentErr: errors.New("branch err")},
+					Pattern: regexp.MustCompile("foo"),
+				}
+			},
+		},
+		{
+			name: "context cancelled",
+			finder: func(_ *testing.T) repo.Finder {
+				return &repo.BranchFilterFinder{
+					Inner:   &testutil.FakeFinder{Paths: []string{"/repo"}},
+					Checker: &fakeBranchChecker{currentMap: map[string]string{"/repo": "main"}},
+					Pattern: regexp.MustCompile("foo"),
+				}
+			},
+			ctxFunc: func(_ *testing.T) context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			if tt.ctxFunc != nil {
+				ctx = tt.ctxFunc(t)
+			}
+			f := tt.finder(t)
+			_, err := f.Find(ctx)
+			require.Error(t, err)
+		})
+	}
+}

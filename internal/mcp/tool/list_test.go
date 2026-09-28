@@ -97,4 +97,16 @@ func TestRegisterList(t *testing.T) {
 		assert.Equal(t, repo1, out.Repositories[0].RepoAbsPath)
 		assert.Equal(t, repo2, out.Repositories[1].RepoAbsPath)
 	})
+
+	t.Run("conflicting branch filter flags", func(t *testing.T) {
+		res, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name: "git_iter_list",
+			Arguments: map[string]any{
+				"default_branch_only":     true,
+				"not_default_branch_only": true,
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+	})
 }
