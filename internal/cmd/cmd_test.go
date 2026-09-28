@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMain(m *testing.M) {
+	testutil.RunTestMain(m)
+}
+
 func TestNoRepoSource(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -299,6 +303,17 @@ func TestConflictingFilterFlags(t *testing.T) {
 	assert.ErrorIs(t, err, cmd.ErrConflictingFilterFlags)
 }
 
+func TestConflictingBranchFlags(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	c := cmd.NewRootCmd()
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	c.SetArgs([]string{"--repos-root", t.TempDir(), "--default-branch-only", "--not-default-branch-only", "list"})
+	err := c.ExecuteContext(context.Background())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, cmd.ErrConflictingBranchFlags)
+}
+
 func TestInvalidRemoteURLRegex(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	c := cmd.NewRootCmd()
@@ -308,4 +323,15 @@ func TestInvalidRemoteURLRegex(t *testing.T) {
 	err := c.ExecuteContext(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid remote-url regex")
+}
+
+func TestInvalidBranchRegex(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	c := cmd.NewRootCmd()
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	c.SetArgs([]string{"--repos-root", t.TempDir(), "--branch", "[invalid(", "list"})
+	err := c.ExecuteContext(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid branch regex")
 }

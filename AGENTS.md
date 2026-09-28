@@ -88,7 +88,7 @@ This document provides guidance for AI agents working on this codebase.
 │   ├── repo/                          # Repository discovery and path filtering
 │   │   ├── repo.go                    # Finder interface, StdinFinder, scanning helpers
 │   │   ├── fs.go                      # FilesystemFinder, CommandFinder, NewFinder
-│   │   ├── filter.go                  # FilteredFinder, StatusFilterFinder, RemoteURLFilterFinder
+│   │   ├── filter.go                  # FilteredFinder, StatusFilterFinder, RemoteURLFilterFinder, DefaultBranchFilterFinder, BranchFilterFinder
 │   │   └── sort_limit.go              # SortedFinder, LimitedFinder
 │   └── runner/                        # Process execution abstraction
 │       ├── runner.go                  # Runner interface, ProcessRunner, PathPrefixRunner (GrepRunner)
@@ -191,6 +191,9 @@ flowchart TD
   - `-n`, `--limit`: Limit the number of processed repositories to the first n repos (applied after sort).
   - `-d`, `--dirty-only`: Filter repositories to only those with uncommitted/untracked changes.
   - `-c`, `--clean-only`: Filter repositories to only those without uncommitted/untracked changes.
+  - `--default-branch-only`: Filter repositories to only those whose current branch is the default branch.
+  - `--not-default-branch-only`: Filter repositories to only those whose current branch is not the default branch.
+  - `--branch`: Filter repositories to only those whose current branch matches the specified regex pattern.
   - `--remote-url`: Filter repositories to only those whose origin remote URL matches the specified regex pattern.
   - `-l`, `--log-level`: Logging level (`debug`, `info`, `warn`, `error`). Logs are always directed to stderr via `slog`.
 
@@ -203,6 +206,8 @@ flowchart TD
 - `SortedFinder`: Sorts repository paths ascending or descending.
 - `LimitedFinder`: Limits repository paths to at most `Limit` items from the beginning.
 - `StatusFilterFinder`: Filters repository paths based on dirty/clean state via git status.
+- `DefaultBranchFilterFinder`: Filters repository paths based on whether current branch is or is not the default branch.
+- `BranchFilterFinder`: Filters repository paths based on current branch matching a regex pattern.
 - `RemoteURLFilterFinder`: Filters repository paths based on origin remote URL matching a regex pattern.
 
 ### 3. Execution Pipeline (`internal/runner`, `internal/executor`, `internal/output`)

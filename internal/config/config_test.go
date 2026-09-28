@@ -6,10 +6,15 @@ import (
 	"time"
 
 	"github.com/berquerant/git-iter-go/internal/config"
+	"github.com/berquerant/git-iter-go/testutil"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	testutil.RunTestMain(m)
+}
 
 func TestParseLogLevel(t *testing.T) {
 	t.Parallel()
@@ -443,6 +448,105 @@ func TestResolve_RemoteURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := resolveConfig(t, tt.flags, tt.envKey, tt.envVal)
 			assert.Equal(t, tt.wantValue, cfg.RemoteURL)
+		})
+	}
+}
+
+func TestResolve_DefaultBranchOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		flags     []string
+		envKey    string
+		envVal    string
+		wantValue bool
+	}{
+		{
+			name:      "default is false",
+			wantValue: false,
+		},
+		{
+			name:      "--default-branch-only flag overrides default",
+			flags:     []string{"--default-branch-only"},
+			wantValue: true,
+		},
+		{
+			name:      "env overrides default",
+			envKey:    "GIT_ITER_DEFAULT_BRANCH_ONLY",
+			envVal:    "true",
+			wantValue: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := resolveConfig(t, tt.flags, tt.envKey, tt.envVal)
+			assert.Equal(t, tt.wantValue, cfg.DefaultBranchOnly)
+		})
+	}
+}
+
+func TestResolve_NotDefaultBranchOnly(t *testing.T) {
+	tests := []struct {
+		name      string
+		flags     []string
+		envKey    string
+		envVal    string
+		wantValue bool
+	}{
+		{
+			name:      "default is false",
+			wantValue: false,
+		},
+		{
+			name:      "--not-default-branch-only flag overrides default",
+			flags:     []string{"--not-default-branch-only"},
+			wantValue: true,
+		},
+		{
+			name:      "env overrides default",
+			envKey:    "GIT_ITER_NOT_DEFAULT_BRANCH_ONLY",
+			envVal:    "true",
+			wantValue: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := resolveConfig(t, tt.flags, tt.envKey, tt.envVal)
+			assert.Equal(t, tt.wantValue, cfg.NotDefaultBranchOnly)
+		})
+	}
+}
+
+func TestResolve_Branch(t *testing.T) {
+	tests := []struct {
+		name      string
+		flags     []string
+		envKey    string
+		envVal    string
+		wantValue string
+	}{
+		{
+			name:      "default is empty",
+			wantValue: "",
+		},
+		{
+			name:      "--branch flag overrides default",
+			flags:     []string{"--branch", `feature/.*`},
+			wantValue: `feature/.*`,
+		},
+		{
+			name:      "env overrides default",
+			envKey:    "GIT_ITER_BRANCH",
+			envVal:    `bugfix/.*`,
+			wantValue: `bugfix/.*`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := resolveConfig(t, tt.flags, tt.envKey, tt.envVal)
+			assert.Equal(t, tt.wantValue, cfg.Branch)
 		})
 	}
 }

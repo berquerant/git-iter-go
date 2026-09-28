@@ -17,6 +17,7 @@ It supports parallel execution controls, per-process timeouts, fail-fast behavio
 - **Filtering & Limiting**:
   - Filter repositories using regex patterns.
   - Filter by repository state (`-d, --dirty-only`, `-c, --clean-only`).
+  - Filter by branch state (`--default-branch-only`, `--not-default-branch-only`, `--branch`).
   - Filter by origin remote URL regex pattern (`--remote-url`).
   - Sort (`--sort`, `--sort-reverse`) and limit (`-n, --limit`).
 - **Multiple Output Formats**:
@@ -71,6 +72,9 @@ Settings can be specified via CLI flags or environment variables (`GIT_ITER_*`):
 | `--fail-fast` | `GIT_ITER_FAIL_FAST` | `false` | Abort immediately when any command fails |
 | `-d, --dirty-only` | - | `false` | Only process repositories with uncommitted/untracked changes |
 | `-c, --clean-only` | - | `false` | Only process repositories without uncommitted/untracked changes |
+| `--default-branch-only` | `GIT_ITER_DEFAULT_BRANCH_ONLY` | `false` | Only process repositories whose current branch is the default branch |
+| `--not-default-branch-only` | `GIT_ITER_NOT_DEFAULT_BRANCH_ONLY` | `false` | Only process repositories whose current branch is not the default branch |
+| `--branch` | `GIT_ITER_BRANCH` | `""` | Filter repositories by current branch regex pattern |
 | `--remote-url` | `GIT_ITER_REMOTE_URL` | `""` | Filter repositories by origin remote URL regex pattern |
 | `--sort` | - | `false` | Sort discovered repository paths in ascending order |
 | `--sort-reverse` | - | `false` | Sort discovered repository paths in descending order |

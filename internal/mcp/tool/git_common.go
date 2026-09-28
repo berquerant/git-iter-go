@@ -11,29 +11,35 @@ import (
 )
 
 type gitCommandToolParams struct {
-	reposRoot   string
-	patterns    []string
-	sortAsc     bool
-	sortDesc    bool
-	limit       int
-	dirtyOnly   bool
-	cleanOnly   bool
-	remoteURL   string
-	timeout     string
-	maxProcs    int
-	commandFunc func(g *git.Command) []string
+	reposRoot            string
+	patterns             []string
+	sortAsc              bool
+	sortDesc             bool
+	limit                int
+	dirtyOnly            bool
+	cleanOnly            bool
+	defaultBranchOnly    bool
+	notDefaultBranchOnly bool
+	branch               string
+	remoteURL            string
+	timeout              string
+	maxProcs             int
+	commandFunc          func(g *git.Command) []string
 }
 
 func executeGitCommandTool(ctx context.Context, cfg *config.Config, p gitCommandToolParams) ([]output.Result, error) {
 	finder, root, err := buildFinder(cfg, finderParams{
-		reposRoot: p.reposRoot,
-		patterns:  p.patterns,
-		sortAsc:   p.sortAsc,
-		sortDesc:  p.sortDesc,
-		limit:     p.limit,
-		dirtyOnly: p.dirtyOnly,
-		cleanOnly: p.cleanOnly,
-		remoteURL: p.remoteURL,
+		reposRoot:            p.reposRoot,
+		patterns:             p.patterns,
+		sortAsc:              p.sortAsc,
+		sortDesc:             p.sortDesc,
+		limit:                p.limit,
+		dirtyOnly:            p.dirtyOnly,
+		cleanOnly:            p.cleanOnly,
+		defaultBranchOnly:    p.defaultBranchOnly,
+		notDefaultBranchOnly: p.notDefaultBranchOnly,
+		branch:               p.branch,
+		remoteURL:            p.remoteURL,
 	})
 	if err != nil {
 		return nil, err

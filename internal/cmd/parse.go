@@ -13,10 +13,16 @@ import (
 // ErrConflictingFilterFlags is returned when both --dirty-only and --clean-only are set.
 var ErrConflictingFilterFlags = fmt.Errorf("cannot specify both --dirty-only (-d) and --clean-only (-c)")
 
+// ErrConflictingBranchFlags is returned when both --default-branch-only and --not-default-branch-only are set.
+var ErrConflictingBranchFlags = fmt.Errorf("cannot specify both --default-branch-only and --not-default-branch-only")
+
 // buildFinder constructs a filtered, sorted, and limited Finder from config and patterns.
 func buildFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
 	if cfg.DirtyOnly && cfg.CleanOnly {
 		return nil, ErrConflictingFilterFlags
+	}
+	if cfg.DefaultBranchOnly && cfg.NotDefaultBranchOnly {
+		return nil, ErrConflictingBranchFlags
 	}
 
 	base := repo.NewFinder(cfg.ReposRoot, cfg.ListRepos)
@@ -30,6 +36,20 @@ func buildFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
 	if cfg.DirtyOnly || cfg.CleanOnly {
 		g := git.New(cfg.GitCommandOrFallback(), nil)
 		finder = repo.NewStatusFilterFinder(finder, g, cfg.DirtyOnly, cfg.CleanOnly)
+	}
+
+	if cfg.DefaultBranchOnly || cfg.NotDefaultBranchOnly {
+		g := git.New(cfg.GitCommandOrFallback(), nil)
+		finder = repo.NewDefaultBranchFilterFinder(finder, g, cfg.DefaultBranchOnly, cfg.NotDefaultBranchOnly)
+	}
+
+	if cfg.Branch != "" {
+		re, err := regexp.Compile(cfg.Branch)
+		if err != nil {
+			return nil, fmt.Errorf("invalid branch regex %q: %w", cfg.Branch, err)
+		}
+		g := git.New(cfg.GitCommandOrFallback(), nil)
+		finder = repo.NewBranchFilterFinder(finder, g, re)
 	}
 
 	if cfg.RemoteURL != "" {

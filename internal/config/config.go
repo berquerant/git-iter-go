@@ -47,6 +47,12 @@ type Config struct {
 	CleanOnly bool `name:"clean-only" default:"false" usage:"only include clean repositories" short:"c"`
 	// RemoteURL filters repositories to only those whose origin remote URL matches the specified regex pattern.
 	RemoteURL string `name:"remote-url" default:"" usage:"filter repositories by origin remote URL regex pattern"`
+	// DefaultBranchOnly filters repositories to only those whose current branch is the default branch.
+	DefaultBranchOnly bool `name:"default-branch-only" default:"false" usage:"only include repositories whose current branch is the default branch"`
+	// NotDefaultBranchOnly filters repositories to only those whose current branch is not the default branch.
+	NotDefaultBranchOnly bool `name:"not-default-branch-only" default:"false" usage:"only include repositories whose current branch is not the default branch"`
+	// Branch filters repositories to only those whose current branch matches the specified regex pattern.
+	Branch string `name:"branch" default:"" usage:"filter repositories by current branch regex pattern"`
 }
 
 const envPrefix = "GIT_ITER_"

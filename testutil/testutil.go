@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -102,4 +103,27 @@ func (r *SubcommandRunner) Calls() [][]string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.calls)
+}
+
+// RunTestMain unsets all GIT_ITER_* environment variables, runs the test suite m,
+// restores the original environment variables, and terminates the process with m's exit code.
+// TestMain implementations in packages can simply call testutil.RunTestMain(m).
+func RunTestMain(m *testing.M) {
+	orig := make(map[string]string)
+	for _, env := range os.Environ() {
+		idx := strings.IndexByte(env, '=')
+		if idx <= 0 {
+			continue
+		}
+		key := env[:idx]
+		if strings.HasPrefix(key, "GIT_ITER_") {
+			orig[key] = env[idx+1:]
+			_ = os.Unsetenv(key)
+		}
+	}
+	code := m.Run()
+	for key, val := range orig {
+		_ = os.Setenv(key, val)
+	}
+	os.Exit(code)
 }

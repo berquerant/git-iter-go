@@ -19,15 +19,21 @@ import (
 // ErrConflictingFilterFlags is returned when both dirty_only and clean_only are set.
 var ErrConflictingFilterFlags = errors.New("cannot specify both dirty_only and clean_only")
 
+// ErrConflictingBranchFlags is returned when both default_branch_only and not_default_branch_only are set.
+var ErrConflictingBranchFlags = errors.New("cannot specify both default_branch_only and not_default_branch_only")
+
 type finderParams struct {
-	reposRoot string
-	patterns  []string
-	sortAsc   bool
-	sortDesc  bool
-	limit     int
-	dirtyOnly bool
-	cleanOnly bool
-	remoteURL string
+	reposRoot            string
+	patterns             []string
+	sortAsc              bool
+	sortDesc             bool
+	limit                int
+	dirtyOnly            bool
+	cleanOnly            bool
+	defaultBranchOnly    bool
+	notDefaultBranchOnly bool
+	branch               string
+	remoteURL            string
 }
 
 func applyStatusFilter(finder repo.Finder, cfg *config.Config, dirtyOnly, cleanOnly bool) repo.Finder {
@@ -40,6 +46,37 @@ func applyStatusFilter(finder repo.Finder, cfg *config.Config, dirtyOnly, cleanO
 	}
 	g := git.New(gitCmd, nil)
 	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly)
+}
+
+func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, defaultOnly, notDefaultOnly bool) repo.Finder {
+	if !defaultOnly && !notDefaultOnly {
+		return finder
+	}
+	gitCmd := ""
+	if cfg != nil {
+		gitCmd = cfg.GitCommandOrFallback()
+	}
+	g := git.New(gitCmd, nil)
+	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly)
+}
+
+func applyBranchFilter(finder repo.Finder, cfg *config.Config, branch string) (repo.Finder, error) {
+	if branch == "" && cfg != nil {
+		branch = cfg.Branch
+	}
+	if branch == "" {
+		return finder, nil
+	}
+	re, err := regexp.Compile(branch)
+	if err != nil {
+		return nil, fmt.Errorf("invalid branch regex %q: %w", branch, err)
+	}
+	gitCmd := ""
+	if cfg != nil {
+		gitCmd = cfg.GitCommandOrFallback()
+	}
+	g := git.New(gitCmd, nil)
+	return repo.NewBranchFilterFinder(finder, g, re), nil
 }
 
 func applyRemoteURLFilter(finder repo.Finder, cfg *config.Config, remoteURL string) (repo.Finder, error) {
@@ -72,6 +109,16 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 		return nil, "", ErrConflictingFilterFlags
 	}
 
+	defaultBranchOnly := p.defaultBranchOnly
+	notDefaultBranchOnly := p.notDefaultBranchOnly
+	if !defaultBranchOnly && !notDefaultBranchOnly && cfg != nil {
+		defaultBranchOnly = cfg.DefaultBranchOnly
+		notDefaultBranchOnly = cfg.NotDefaultBranchOnly
+	}
+	if defaultBranchOnly && notDefaultBranchOnly {
+		return nil, "", ErrConflictingBranchFlags
+	}
+
 	root := p.reposRoot
 	listRepos := ""
 	if root == "" && cfg != nil {
@@ -102,6 +149,12 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 	}
 	finder = repo.NewLimitedFinder(finder, limit)
 	finder = applyStatusFilter(finder, cfg, dirtyOnly, cleanOnly)
+	finder = applyDefaultBranchFilter(finder, cfg, defaultBranchOnly, notDefaultBranchOnly)
+
+	finder, err = applyBranchFilter(finder, cfg, p.branch)
+	if err != nil {
+		return nil, "", err
+	}
 
 	finder, err = applyRemoteURLFilter(finder, cfg, p.remoteURL)
 	if err != nil {
