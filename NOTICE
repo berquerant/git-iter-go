@@ -886,8 +886,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## golang.org/x/sync
 
 * Name: golang.org/x/sync
-* Version: v0.23.0
-* License: [BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.23.0:LICENSE)
+* Version: v0.24.0
+* License: [BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.24.0:LICENSE)
 
 ```
 Copyright 2009 The Go Authors.
