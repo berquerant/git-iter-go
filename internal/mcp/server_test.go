@@ -25,6 +25,9 @@ func TestMcpServer_Tools(t *testing.T) {
 	getTmpDir := t.TempDir()
 	existingRepo := testutil.MakeGitRepo(t, getTmpDir, filepath.Join("github.com", "org", "existing"))
 
+	wtTmpDir := t.TempDir()
+	wt1 := testutil.MakeGitRepo(t, wtTmpDir, filepath.Join("repo1", "wt-feat"))
+
 	// Create a dummy file in repo1 for git grep test
 	require.NoError(t, os.WriteFile(filepath.Join(repo1, "hello.txt"), []byte("hello world\n"), 0o644))
 
@@ -33,7 +36,7 @@ func TestMcpServer_Tools(t *testing.T) {
 		MaxProcs:  1,
 	}
 
-	server := iterMcp.NewServer(cfg, iterMcp.WithEnableDo(true), iterMcp.WithEnableGet(true))
+	server := iterMcp.NewServer(cfg, iterMcp.WithEnableDo(true), iterMcp.WithEnableGet(true), iterMcp.WithEnableWorktree(true))
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "v1.0.0"}, nil)
 
 	t1, t2 := mcpsdk.NewInMemoryTransports()
@@ -47,7 +50,7 @@ func TestMcpServer_Tools(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = clientSession.Close() }()
 
-	t.Run("list tools with do and get enabled", func(t *testing.T) {
+	t.Run("list tools with do, get, and worktree enabled", func(t *testing.T) {
 		res, err := clientSession.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -58,6 +61,10 @@ func TestMcpServer_Tools(t *testing.T) {
 		}
 
 		assert.Contains(t, toolNames, "git_iter_list")
+		assert.Contains(t, toolNames, "git_iter_worktree_list")
+		assert.Contains(t, toolNames, "git_iter_worktree_add")
+		assert.Contains(t, toolNames, "git_iter_worktree_remove")
+		assert.Contains(t, toolNames, "git_iter_worktree_prune")
 		assert.Contains(t, toolNames, "git_iter_do")
 		assert.Contains(t, toolNames, "git_iter_get")
 		assert.Contains(t, toolNames, "git_iter_grep")
@@ -66,7 +73,7 @@ func TestMcpServer_Tools(t *testing.T) {
 		assert.Contains(t, toolNames, "git_iter_diff")
 	})
 
-	t.Run("list tools with do and get disabled", func(t *testing.T) {
+	t.Run("list tools with mutating tools disabled by default", func(t *testing.T) {
 		defaultServer := iterMcp.NewServer(cfg)
 		st1, ct1 := mcpsdk.NewInMemoryTransports()
 
@@ -88,8 +95,12 @@ func TestMcpServer_Tools(t *testing.T) {
 		}
 
 		assert.Contains(t, toolNames, "git_iter_list")
+		assert.Contains(t, toolNames, "git_iter_worktree_list")
 		assert.NotContains(t, toolNames, "git_iter_do")
 		assert.NotContains(t, toolNames, "git_iter_get")
+		assert.NotContains(t, toolNames, "git_iter_worktree_add")
+		assert.NotContains(t, toolNames, "git_iter_worktree_remove")
+		assert.NotContains(t, toolNames, "git_iter_worktree_prune")
 	})
 
 	tests := []struct {
@@ -311,6 +322,79 @@ func TestMcpServer_Tools(t *testing.T) {
 			toolName: "git_iter_get",
 			arguments: map[string]any{
 				"uri": "invalid",
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				assert.True(t, res.IsError)
+			},
+		},
+		{
+			name:     "call git_iter_worktree_list",
+			toolName: "git_iter_worktree_list",
+			arguments: map[string]any{
+				"worktree_root": wtTmpDir,
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				require.False(t, res.IsError)
+				data, err := json.Marshal(res.StructuredContent)
+				require.NoError(t, err)
+				var out iterMcp.WorktreeListToolOutput
+				require.NoError(t, json.Unmarshal(data, &out))
+				require.Len(t, out.Repositories, 1)
+				assert.Equal(t, wt1, out.Repositories[0].RepoAbsPath)
+			},
+		},
+		{
+			name:     "call git_iter_worktree_list with repo=true",
+			toolName: "git_iter_worktree_list",
+			arguments: map[string]any{
+				"worktree_root": wtTmpDir,
+				"repo":          true,
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				require.False(t, res.IsError)
+				data, err := json.Marshal(res.StructuredContent)
+				require.NoError(t, err)
+				var out iterMcp.WorktreeListToolOutput
+				require.NoError(t, json.Unmarshal(data, &out))
+				require.Len(t, out.Repositories, 1)
+				assert.Equal(t, repo1, out.Repositories[0].RepoAbsPath)
+			},
+		},
+		{
+			name:     "call git_iter_worktree_prune dry_run",
+			toolName: "git_iter_worktree_prune",
+			arguments: map[string]any{
+				"worktree_root": wtTmpDir,
+				"all":           true,
+				"dry_run":       true,
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				require.False(t, res.IsError)
+				data, err := json.Marshal(res.StructuredContent)
+				require.NoError(t, err)
+				var out iterMcp.WorktreePruneToolOutput
+				require.NoError(t, json.Unmarshal(data, &out))
+				require.Len(t, out.Results, 1)
+				assert.Equal(t, repo1, out.Results[0].RepoAbsPath)
+			},
+		},
+		{
+			name:     "call git_iter_worktree_add with invalid branch",
+			toolName: "git_iter_worktree_add",
+			arguments: map[string]any{
+				"repo_dir": repo1,
+				"branch":   "-invalid",
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				assert.True(t, res.IsError)
+			},
+		},
+		{
+			name:     "call git_iter_worktree_remove with invalid branch",
+			toolName: "git_iter_worktree_remove",
+			arguments: map[string]any{
+				"repo_dir": repo1,
+				"branch":   "-invalid",
 			},
 			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
 				assert.True(t, res.IsError)

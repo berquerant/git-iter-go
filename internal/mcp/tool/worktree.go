@@ -1,0 +1,346 @@
+package tool
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+
+	"github.com/berquerant/git-iter-go/internal/config"
+	"github.com/berquerant/git-iter-go/internal/git"
+	"github.com/berquerant/git-iter-go/internal/output"
+	"github.com/berquerant/git-iter-go/internal/repo"
+	"github.com/berquerant/git-iter-go/internal/runner"
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// WorktreeListToolInput defines parameters for git_iter_worktree_list tool.
+type WorktreeListToolInput struct {
+	WorktreeRoot string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
+	Repo         bool   `json:"repo,omitempty" jsonschema:"when true, return unique main repository paths corresponding to discovered worktrees"`
+	RepoDiscoveryInput
+}
+
+// WorktreeListToolOutput defines output for git_iter_worktree_list tool.
+type WorktreeListToolOutput struct {
+	Repositories []output.RepoResult `json:"repositories" jsonschema:"discovered worktrees or corresponding main repositories"`
+}
+
+// WorktreeAddToolInput defines parameters for git_iter_worktree_add tool.
+type WorktreeAddToolInput struct {
+	Branch       string `json:"branch" jsonschema:"existing branch name to checkout (or base branch when new_branch is specified)"`
+	NewBranch    string `json:"new_branch,omitempty" jsonschema:"optional new branch name (-b) to create starting from branch"`
+	RepoDir      string `json:"repo_dir,omitempty" jsonschema:"target main repository directory (defaults to current working directory)"`
+	ReposRoot    string `json:"repos_root,omitempty" jsonschema:"root directory of local repositories"`
+	WorktreeRoot string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
+	Timeout      string `json:"timeout,omitempty" jsonschema:"per-process execution timeout (e.g. 5s, 1m)"`
+}
+
+// WorktreeAddToolOutput defines output for git_iter_worktree_add tool.
+type WorktreeAddToolOutput struct {
+	Worktree output.RepoResult `json:"worktree" jsonschema:"created worktree path"`
+}
+
+// WorktreeRemoveToolInput defines parameters for git_iter_worktree_remove tool.
+type WorktreeRemoveToolInput struct {
+	Branch       string `json:"branch" jsonschema:"branch name whose worktree should be removed"`
+	Force        bool   `json:"force,omitempty" jsonschema:"force removal even if worktree is dirty"`
+	NoForce      bool   `json:"no_force,omitempty" jsonschema:"do not force removal"`
+	RepoDir      string `json:"repo_dir,omitempty" jsonschema:"target main repository directory (defaults to current working directory)"`
+	ReposRoot    string `json:"repos_root,omitempty" jsonschema:"root directory of local repositories"`
+	WorktreeRoot string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
+	Timeout      string `json:"timeout,omitempty" jsonschema:"per-process execution timeout (e.g. 5s, 1m)"`
+}
+
+// WorktreeRemoveToolOutput defines output for git_iter_worktree_remove tool.
+type WorktreeRemoveToolOutput struct {
+	Worktree output.RepoResult `json:"worktree" jsonschema:"removed worktree path"`
+}
+
+// WorktreePruneToolInput defines parameters for git_iter_worktree_prune tool.
+type WorktreePruneToolInput struct {
+	DryRun       bool   `json:"dry_run,omitempty" jsonschema:"do not remove anything; report what would be pruned"`
+	All          bool   `json:"all,omitempty" jsonschema:"prune across all repositories that have worktrees under worktree_root"`
+	RepoDir      string `json:"repo_dir,omitempty" jsonschema:"target main repository directory when all is false (defaults to current working directory)"`
+	WorktreeRoot string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
+	RepoDiscoveryInput
+	ProcessExecInput
+}
+
+// WorktreePruneToolOutput defines output for git_iter_worktree_prune tool.
+type WorktreePruneToolOutput struct {
+	Results []output.Result `json:"results" jsonschema:"prune execution results per repository"`
+}
+
+func resolveRoots(inReposRoot, inWorktreeRoot string, cfg *config.Config) (string, string, error) {
+	reposRoot := inReposRoot
+	if reposRoot == "" && cfg != nil {
+		reposRoot = cfg.ReposRoot
+	}
+	wtRoot := inWorktreeRoot
+	if wtRoot == "" && cfg != nil {
+		wtRoot = cfg.WorktreeRoot
+	}
+	if wtRoot == "" && reposRoot != "" {
+		wtRoot = filepath.Join(reposRoot, "git-worktree")
+	}
+	if wtRoot == "" {
+		return "", "", fmt.Errorf("worktree_root or repos_root must be specified")
+	}
+	return reposRoot, wtRoot, nil
+}
+
+func resolveRepoDir(inRepoDir string) (string, error) {
+	if inRepoDir != "" {
+		return git.FindRepoRoot(inRepoDir)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return git.FindRepoRoot(wd)
+}
+
+func findWorktreePaths(ctx context.Context, wtRoot string, cfg *config.Config, discovery RepoDiscoveryInput) ([]string, error) {
+	base := &repo.FilesystemFinder{Root: wtRoot}
+	finder, err := buildFinderFromBase(base, cfg, finderParams{Discovery: discovery})
+	if err != nil {
+		return nil, err
+	}
+	paths, err := finder.Find(ctx)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find worktrees: %w", err)
+	}
+	return paths, nil
+}
+
+// RegisterWorktreeList registers the read-only git_iter_worktree_list tool on the given MCP server.
+func RegisterWorktreeList(server *mcpsdk.Server, cfg *config.Config) {
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "git_iter_worktree_list",
+		Description: "Discover and list git worktrees under worktree_root, or list their unique corresponding main repositories when repo is true",
+	}, func(
+		ctx context.Context,
+		_ *mcpsdk.CallToolRequest,
+		in WorktreeListToolInput,
+	) (*mcpsdk.CallToolResult, WorktreeListToolOutput, error) {
+		reposRoot, wtRoot, err := resolveRoots(in.ReposRoot, in.WorktreeRoot, cfg)
+		if err != nil {
+			return nil, WorktreeListToolOutput{}, err
+		}
+
+		wtPaths, err := findWorktreePaths(ctx, wtRoot, cfg, in.RepoDiscoveryInput)
+		if err != nil {
+			return nil, WorktreeListToolOutput{}, err
+		}
+
+		paths := wtPaths
+		relBase := wtRoot
+		if in.Repo {
+			paths, err = git.ResolveUniqueMainRepos(reposRoot, wtRoot, wtPaths)
+			if err != nil {
+				return nil, WorktreeListToolOutput{}, err
+			}
+			relBase = reposRoot
+		}
+
+		res := make([]output.RepoResult, len(paths))
+		for i, p := range paths {
+			res[i] = output.RepoResult{
+				RepoAbsPath: p,
+				RepoRelPath: output.RelPath(relBase, p),
+			}
+		}
+		return nil, WorktreeListToolOutput{Repositories: res}, nil
+	})
+}
+
+// RegisterWorktreeMutations registers git_iter_worktree_add, git_iter_worktree_remove,
+// and git_iter_worktree_prune on the given MCP server.
+func RegisterWorktreeMutations(server *mcpsdk.Server, cfg *config.Config) {
+	registerWorktreeAdd(server, cfg)
+	registerWorktreeRemove(server, cfg)
+	registerWorktreePrune(server, cfg)
+}
+
+func registerWorktreeAdd(server *mcpsdk.Server, cfg *config.Config) {
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "git_iter_worktree_add",
+		Description: "Add a git worktree under worktree_root for the target repository and return the created worktree path",
+	}, func(
+		ctx context.Context,
+		_ *mcpsdk.CallToolRequest,
+		in WorktreeAddToolInput,
+	) (*mcpsdk.CallToolResult, WorktreeAddToolOutput, error) {
+		reposRoot, wtRoot, err := resolveRoots(in.ReposRoot, in.WorktreeRoot, cfg)
+		if err != nil {
+			return nil, WorktreeAddToolOutput{}, err
+		}
+		repoRoot, err := resolveRepoDir(in.RepoDir)
+		if err != nil {
+			return nil, WorktreeAddToolOutput{}, err
+		}
+
+		targetBranch := in.Branch
+		if in.NewBranch != "" {
+			targetBranch = in.NewBranch
+		}
+		wtPath, err := git.ResolveWorktreePath(reposRoot, wtRoot, repoRoot, targetBranch)
+		if err != nil {
+			return nil, WorktreeAddToolOutput{}, err
+		}
+
+		timeout, err := resolveTimeout(in.Timeout, cfg)
+		if err != nil {
+			return nil, WorktreeAddToolOutput{}, err
+		}
+		runCtx := ctx
+		if timeout > 0 {
+			var cancel context.CancelFunc
+			runCtx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+
+		gitCmd := ""
+		if cfg != nil {
+			gitCmd = cfg.GitCommandOrFallback()
+		}
+		g := git.New(gitCmd, nil)
+		if err := g.WorktreeAdd(runCtx, repoRoot, wtPath, in.Branch, in.NewBranch, io.Discard); err != nil {
+			return nil, WorktreeAddToolOutput{}, err
+		}
+
+		return nil, WorktreeAddToolOutput{
+			Worktree: output.RepoResult{
+				RepoAbsPath: wtPath,
+				RepoRelPath: output.RelPath(wtRoot, wtPath),
+			},
+		}, nil
+	})
+}
+
+func registerWorktreeRemove(server *mcpsdk.Server, cfg *config.Config) {
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "git_iter_worktree_remove",
+		Description: "Remove the git worktree corresponding to branch for the target repository",
+	}, func(
+		ctx context.Context,
+		_ *mcpsdk.CallToolRequest,
+		in WorktreeRemoveToolInput,
+	) (*mcpsdk.CallToolResult, WorktreeRemoveToolOutput, error) {
+		reposRoot, wtRoot, err := resolveRoots(in.ReposRoot, in.WorktreeRoot, cfg)
+		if err != nil {
+			return nil, WorktreeRemoveToolOutput{}, err
+		}
+		repoRoot, err := resolveRepoDir(in.RepoDir)
+		if err != nil {
+			return nil, WorktreeRemoveToolOutput{}, err
+		}
+		wtPath, err := git.ResolveWorktreePath(reposRoot, wtRoot, repoRoot, in.Branch)
+		if err != nil {
+			return nil, WorktreeRemoveToolOutput{}, err
+		}
+
+		timeout, err := resolveTimeout(in.Timeout, cfg)
+		if err != nil {
+			return nil, WorktreeRemoveToolOutput{}, err
+		}
+		runCtx := ctx
+		if timeout > 0 {
+			var cancel context.CancelFunc
+			runCtx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
+
+		gitCmd := ""
+		if cfg != nil {
+			gitCmd = cfg.GitCommandOrFallback()
+		}
+		g := git.New(gitCmd, nil)
+		if err := g.WorktreeRemove(runCtx, repoRoot, wtPath, in.Force, in.NoForce, io.Discard); err != nil {
+			return nil, WorktreeRemoveToolOutput{}, err
+		}
+
+		return nil, WorktreeRemoveToolOutput{
+			Worktree: output.RepoResult{
+				RepoAbsPath: wtPath,
+				RepoRelPath: output.RelPath(wtRoot, wtPath),
+			},
+		}, nil
+	})
+}
+
+func registerWorktreePrune(server *mcpsdk.Server, cfg *config.Config) {
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "git_iter_worktree_prune",
+		Description: "Remove worktrees merged into the default branch and run git worktree prune",
+	}, func(
+		ctx context.Context,
+		_ *mcpsdk.CallToolRequest,
+		in WorktreePruneToolInput,
+	) (*mcpsdk.CallToolResult, WorktreePruneToolOutput, error) {
+		reposRoot, wtRoot, err := resolveRoots(in.ReposRoot, in.WorktreeRoot, cfg)
+		if err != nil {
+			return nil, WorktreePruneToolOutput{}, err
+		}
+
+		var paths []string
+		if in.All {
+			wtPaths, err := findWorktreePaths(ctx, wtRoot, cfg, in.RepoDiscoveryInput)
+			if err != nil {
+				return nil, WorktreePruneToolOutput{}, err
+			}
+			paths, err = git.ResolveUniqueMainRepos(reposRoot, wtRoot, wtPaths)
+			if err != nil {
+				return nil, WorktreePruneToolOutput{}, err
+			}
+		} else {
+			repoRoot, err := resolveRepoDir(in.RepoDir)
+			if err != nil {
+				return nil, WorktreePruneToolOutput{}, err
+			}
+			paths = []string{repoRoot}
+		}
+
+		timeout, err := resolveTimeout(in.Timeout, cfg)
+		if err != nil {
+			return nil, WorktreePruneToolOutput{}, err
+		}
+
+		gitCmd := ""
+		if cfg != nil {
+			gitCmd = cfg.GitCommandOrFallback()
+		}
+		pruneRunner := &runner.WorktreePruneRunner{
+			GitCommand:   gitCmd,
+			ReposRoot:    reposRoot,
+			WorktreeRoot: wtRoot,
+			DryRun:       in.DryRun,
+			Inner:        runner.ProcessRunner{},
+		}
+		cmd := git.New(gitCmd, nil).WorktreePruneCmd(in.DryRun)
+
+		tasks := make([]output.Task, len(paths))
+		for i, p := range paths {
+			tasks[i] = output.Task{
+				RepoAbsPath: p,
+				ReposRoot:   reposRoot,
+				Dir:         p,
+				Command:     cmd,
+				Runner:      pruneRunner,
+			}
+		}
+
+		results, err := executeTasksCollect(ctx, tasks, resolveProcs(in.MaxProcs, cfg), timeout)
+		if err != nil {
+			return nil, WorktreePruneToolOutput{}, err
+		}
+		return nil, WorktreePruneToolOutput{Results: results}, nil
+	})
+}

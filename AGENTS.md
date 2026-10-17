@@ -27,6 +27,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │   ├── grep.go                    # "grep" subcommand: git grep with repository prefix
 │   │   ├── list.go                    # "list" / "ls" subcommand: discover and list repo paths
 │   │   ├── get.go                     # "get" subcommand: resolve or clone repo by URI, or list repo paths
+│   │   ├── worktree.go                # "worktree" / "wt" subcommand: list, add, remove, prune git worktrees
 │   │   ├── read.go                    # "read" subcommand: execute commands for repos fed via stdin
 │   │   ├── pull.go                    # "pull" subcommand: git pull across matched repos with branch switching
 │   │   ├── fetch.go                   # "fetch" subcommand: git fetch across matched repos with default branch filter
@@ -42,12 +43,14 @@ This document provides guidance for AI agents working on this codebase.
 │   │   │   ├── do.go                  # Do subcommand argument parsing (DoArgs, ParseDoArgs)
 │   │   │   ├── grep.go                # Grep subcommand argument parsing (GrepArgs, ParseGrepArgs)
 │   │   │   ├── repo.go                # Repo listing, reading, & get argument parsing (ListArgs, ReadArgs, GetArgs)
+│   │   │   ├── worktree.go            # Worktree subcommand argument parsing (WorktreeListArgs, WorktreeAddArgs, WorktreeRemoveArgs, WorktreePruneArgs)
 │   │   │   ├── git_sync.go            # Remote sync argument parsing (PullArgs, FetchArgs)
 │   │   │   └── git_inspect.go         # Git status, diff, ls-files argument parsing
 │   │   └── runner/                    # Subcommand runner orchestration package
 │   │       ├── common.go              # Shared task construction and streaming execution logic
 │   │       ├── do.go                  # RunDo, RunRead command runners
 │   │       ├── repo.go                # RunList, RunGet repository runners
+│   │       ├── worktree.go            # RunWorktreeList, RunWorktreeAdd, RunWorktreeRemove, RunWorktreePrune runners
 │   │       ├── grep.go                # RunGrep runner with path prefixing
 │   │       ├── git_sync.go            # RunPull, RunFetch runners
 │   │       └── git_inspect.go         # RunLsFiles, RunStatus, RunDiff runners
@@ -59,6 +62,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │       ├── git_common.go          # Shared git command tool registration helper
 │   │       ├── list.go                # git_iter_list tool
 │   │       ├── get.go                 # git_iter_get tool
+│   │       ├── worktree.go            # git_iter_worktree_list, git_iter_worktree_add, git_iter_worktree_remove, git_iter_worktree_prune tools
 │   │       ├── do.go                  # git_iter_do tool
 │   │       ├── grep.go                # git_iter_grep tool
 │   │       ├── ls_files.go            # git_iter_ls_files tool
@@ -69,7 +73,8 @@ This document provides guidance for AI agents working on this codebase.
 │   ├── executor/                      # Unstructured/streaming concurrent task execution
 │   │   └── executor.go                # Executor: concurrency control (semaphore), timeout, fail-fast
 │   ├── git/                           # Centralized git CLI command builder and operations
-│   │   └── git.go                     # git.Command: branch operations, default branch resolution, clone/grep/pull builder, URI2RelPath, IsRepo
+│   │   ├── git.go                     # git.Command: branch operations, default branch resolution, clone/grep/pull builder, URI2RelPath, IsRepo
+│   │   └── worktree.go                # git worktree path resolution, add/remove/prune builders, IsMerged check
 │   ├── markdown/                      # Pure Markdown document rendering and formatting
 │   │   ├── details.go                 # Details section formatting (Details, FormatDetails, FormatCodeDetails)
 │   │   ├── heading.go                 # Heading prefix and header generation (HeadingPrefix, WriteHeader)
@@ -96,6 +101,7 @@ This document provides guidance for AI agents working on this codebase.
 │       ├── runner.go                  # Runner interface, ProcessRunner, PathPrefixRunner (GrepRunner)
 │       ├── pull.go                    # PullRunner: git pull with default branch checkout & restoration
 │       ├── fetch.go                   # FetchRunner: git fetch with optional default branch restriction
+│       ├── worktree_prune.go          # WorktreePruneRunner: remove merged worktrees under worktree_root & git worktree prune
 │       └── error.go                   # TaskError: structured execution error with repo/cmd/exit code
 ├── testutil/
 │   └── testutil.go                    # FakeRunner and FakeFinder test doubles
@@ -120,6 +126,7 @@ flowchart TD
         GrepCmd[grep]
         ListCmd[list / ls]
         GetCmd[get]
+        WorktreeCmd["worktree / wt"]
         LsFilesCmd["ls-files / lsf"]
         ReadCmd[read]
         PullCmd[pull]
@@ -152,10 +159,12 @@ flowchart TD
         PPRunner["PathPrefixRunner (GrepRunner): path prefixing"]
         PullRunner[PullRunner: branch switch & pull]
         FetchRunner[FetchRunner: default branch fetch]
+        WTPruneRunner[WorktreePruneRunner: merged worktree prune]
         PRunner --> Runner
         PPRunner --> Runner
         PullRunner --> Runner
         FetchRunner --> Runner
+        WTPruneRunner --> Runner
 
         ExecDispatch{Output Mode?}
         TextExec["Executor (internal/executor)<br/>Stream stdout/stderr directly"]
@@ -182,6 +191,7 @@ flowchart TD
 - Resolves configuration in order of priority: **Default values < Environment variables (`GIT_ITER_*`) < CLI flags**.
 - Handles flags:
   - `-r`, `--repos-root`: Root directory scanned for `.git` entries.
+  - `--worktree-root`: Root directory for git worktrees (default: `<repos-root>/git-worktree`).
   - `--list-repos`: Shell command generating repo paths.
   - `-p`, `--max-procs`: Parallelism limit (default: `1`).
   - `--timeout`: Per-process execution timeout (e.g. `5s`, `1m`).
@@ -220,6 +230,7 @@ flowchart TD
   - `PathPrefixRunner` (`GrepRunner`): Wraps another `Runner` to execute commands (e.g. `git grep`, `git ls-files`) and prefix output lines with the repository relative/absolute path.
   - `PullRunner`: Executes `git pull` with optional default branch detection (`origin/HEAD` / `init.defaultBranch` / `main` / `master`), checkout, and branch restoration.
   - `FetchRunner`: Executes `git fetch` with optional default branch restriction (`git fetch origin <default-branch>`).
+  - `WorktreePruneRunner`: Inspects worktrees under `<worktree-root>/<DIR>`, removes non-default worktrees merged into the default branch (`git merge-base --is-ancestor` or squash merge tree equivalence), and runs `git worktree prune`.
 - Concurrency & Process Control:
   - Controlled by `golang.org/x/sync/semaphore.Weighted`.
   - Per-task timeout wrapping via `context.WithTimeout(ctx, Timeout)`.
@@ -236,6 +247,10 @@ flowchart TD
 - Exposes tools to LLM/MCP clients:
   - `git_iter_list`: Discover repositories matching patterns under a root directory.
   - `git_iter_get`: Resolve or clone a repository by URI under the root directory, or list discovered repositories if URI is omitted (disabled by default for security, enabled via `--enable-get`).
+  - `git_iter_worktree_list`: Discover git worktrees matching patterns under the worktree root, or resolve unique corresponding main repositories (`repo=true`).
+  - `git_iter_worktree_add`: Create a git worktree for a repository (disabled by default for security, enabled via `--enable-worktree`).
+  - `git_iter_worktree_remove`: Remove a git worktree for a repository (disabled by default for security, enabled via `--enable-worktree`).
+  - `git_iter_worktree_prune`: Remove merged worktrees and prune stale worktree metadata (disabled by default for security, enabled via `--enable-worktree`).
   - `git_iter_do`: Run arbitrary commands across matching repositories, returning exit codes, stdout, and stderr (disabled by default for security, enabled via `--enable-do`).
   - `git_iter_grep`: Run `git grep` across matching repositories with prefixed output paths.
   - `git_iter_ls_files`: Run `git ls-files` across matching repositories with prefixed output paths.

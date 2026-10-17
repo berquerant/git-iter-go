@@ -94,7 +94,7 @@ Flag resolution order (highest priority wins):
 			if err != nil {
 				return err
 			}
-			if cfg.ReposRoot == "" && cfg.ListRepos == "" && !slices.Contains([]string{
+			if cfg.ReposRoot == "" && cfg.ListRepos == "" && cfg.WorktreeRoot == "" && !slices.Contains([]string{
 				"version",
 				"help",
 				"read",
@@ -127,6 +127,7 @@ Flag resolution order (highest priority wins):
 		NewGrepCmd(),
 		NewListCmd(),
 		NewGetCmd(),
+		NewWorktreeCmd(),
 		NewReadCmd(),
 		NewPullCmd(),
 		NewFetchCmd(),

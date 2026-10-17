@@ -115,26 +115,6 @@ func applyRemoteURLFilter(finder repo.Finder, cfg *config.Config, remoteURL stri
 }
 
 func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error) {
-	dirtyOnly := p.Status.DirtyOnly
-	cleanOnly := p.Status.CleanOnly
-	if !dirtyOnly && !cleanOnly && cfg != nil {
-		dirtyOnly = cfg.DirtyOnly
-		cleanOnly = cfg.CleanOnly
-	}
-	if dirtyOnly && cleanOnly {
-		return nil, "", ErrConflictingFilterFlags
-	}
-
-	defaultBranchOnly := p.Discovery.DefaultBranchOnly
-	notDefaultBranchOnly := p.Discovery.NotDefaultBranchOnly
-	if !defaultBranchOnly && !notDefaultBranchOnly && cfg != nil {
-		defaultBranchOnly = cfg.DefaultBranchOnly
-		notDefaultBranchOnly = cfg.NotDefaultBranchOnly
-	}
-	if defaultBranchOnly && notDefaultBranchOnly {
-		return nil, "", ErrConflictingBranchFlags
-	}
-
 	root := p.Discovery.ReposRoot
 	listRepos := ""
 	if root == "" && cfg != nil {
@@ -146,9 +126,37 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 	}
 
 	base := repo.NewFinder(root, listRepos)
+	finder, err := buildFinderFromBase(base, cfg, p)
+	if err != nil {
+		return nil, "", err
+	}
+	return finder, root, nil
+}
+
+func buildFinderFromBase(base repo.Finder, cfg *config.Config, p finderParams) (repo.Finder, error) {
+	dirtyOnly := p.Status.DirtyOnly
+	cleanOnly := p.Status.CleanOnly
+	if !dirtyOnly && !cleanOnly && cfg != nil {
+		dirtyOnly = cfg.DirtyOnly
+		cleanOnly = cfg.CleanOnly
+	}
+	if dirtyOnly && cleanOnly {
+		return nil, ErrConflictingFilterFlags
+	}
+
+	defaultBranchOnly := p.Discovery.DefaultBranchOnly
+	notDefaultBranchOnly := p.Discovery.NotDefaultBranchOnly
+	if !defaultBranchOnly && !notDefaultBranchOnly && cfg != nil {
+		defaultBranchOnly = cfg.DefaultBranchOnly
+		notDefaultBranchOnly = cfg.NotDefaultBranchOnly
+	}
+	if defaultBranchOnly && notDefaultBranchOnly {
+		return nil, ErrConflictingBranchFlags
+	}
+
 	finder, err := repo.NewFilteredFinder(base, p.Discovery.Patterns)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid pattern: %w", err)
+		return nil, fmt.Errorf("invalid pattern: %w", err)
 	}
 
 	sortAsc := p.Discovery.Sort
@@ -169,15 +177,15 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 
 	finder, err = applyBranchFilter(finder, cfg, p.Discovery.Branch)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	finder, err = applyRemoteURLFilter(finder, cfg, p.Discovery.RemoteURL)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	return finder, root, nil
+	return finder, nil
 }
 
 func resolveProcs(inMaxProcs int, cfg *config.Config) int {

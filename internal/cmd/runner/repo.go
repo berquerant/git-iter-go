@@ -14,22 +14,26 @@ import (
 )
 
 func writeRepoPaths(cfg *config.Config, outMode string, paths []string, stdout io.Writer) error {
+	return writeRepoPathsWithRoot(cfg.ReposRoot, cfg.MarkdownHeaderLevel, outMode, paths, stdout)
+}
+
+func writeRepoPathsWithRoot(root string, headerLevel int, outMode string, paths []string, stdout io.Writer) error {
 	switch outMode {
 	case outModeMarkdown, outModeMD:
 		results := make([]output.RepoResult, len(paths))
 		for i, p := range paths {
 			results[i] = output.RepoResult{
 				RepoAbsPath: p,
-				RepoRelPath: output.RelPath(cfg.ReposRoot, p),
+				RepoRelPath: output.RelPath(root, p),
 			}
 		}
-		return output.WriteListMarkdown(stdout, results, cfg.ReposRoot, cfg.MarkdownHeaderLevel)
+		return output.WriteListMarkdown(stdout, results, root, headerLevel)
 
 	case outModeJSON:
 		for _, p := range paths {
 			if err := output.WriteRepoJSONL(stdout, output.RepoResult{
 				RepoAbsPath: p,
-				RepoRelPath: output.RelPath(cfg.ReposRoot, p),
+				RepoRelPath: output.RelPath(root, p),
 			}); err != nil {
 				return err
 			}

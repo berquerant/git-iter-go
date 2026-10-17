@@ -6,6 +6,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,6 +20,9 @@ type Config struct {
 	MaxProcs int `name:"max-procs" default:"1" usage:"maximum number of parallel processes" short:"p"`
 	// ReposRoot is the root directory scanned for git repositories when ListRepos is empty.
 	ReposRoot string `name:"repos-root" default:"" usage:"root directory of local repositories" short:"r"`
+	// WorktreeRoot is the root directory where git worktrees are placed.
+	// When empty, it defaults to <repos-root>/git-worktree.
+	WorktreeRoot string `name:"worktree-root" default:"" usage:"root directory of git worktrees (defaults to <repos-root>/git-worktree)"`
 	// ListRepos is an optional shell command whose stdout lists absolute repository paths.
 	// When set, ReposRoot is ignored for discovery.
 	ListRepos string `name:"list-repos" default:"" usage:"command to list absolute paths of repositories (one per line)"`
@@ -105,6 +109,21 @@ func (c *Config) GitCommandOrFallback() string {
 		return c.GitCommand
 	}
 	return "git"
+}
+
+// WorktreeRootOrFallback returns WorktreeRoot if set, otherwise <ReposRoot>/git-worktree
+// when ReposRoot is non-empty, or an empty string if neither is configured.
+func (c *Config) WorktreeRootOrFallback() string {
+	if c == nil {
+		return ""
+	}
+	if c.WorktreeRoot != "" {
+		return c.WorktreeRoot
+	}
+	if c.ReposRoot != "" {
+		return filepath.Join(c.ReposRoot, "git-worktree")
+	}
+	return ""
 }
 
 // ParseLogLevel converts a level string (e.g. "debug", "info", "warn", "error")

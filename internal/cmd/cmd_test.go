@@ -413,3 +413,36 @@ func TestInvalidRegexFlags(t *testing.T) {
 		})
 	}
 }
+
+func TestWorktreeCmd(t *testing.T) {
+	t.Parallel()
+
+	reposRoot := t.TempDir()
+	wtRoot := filepath.Join(reposRoot, "git-worktree")
+	repo1 := testutil.MakeGitRepo(t, reposRoot, filepath.Join("org", "repo1"))
+	wt1 := testutil.MakeGitRepo(t, wtRoot, filepath.Join("org", "repo1", "feat-1"))
+	wt2 := testutil.MakeGitRepo(t, wtRoot, filepath.Join("org", "repo1", "feat-2"))
+
+	t.Run("worktree list", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		c := cmd.NewRootCmd()
+		c.SetOut(&stdout)
+		c.SetErr(&stderr)
+		c.SetArgs([]string{"-r", reposRoot, "--sort", "worktree", "list"})
+		require.NoError(t, c.ExecuteContext(context.Background()))
+		assert.Equal(t, wt1+"\n"+wt2+"\n", stdout.String())
+	})
+
+	t.Run("worktree list --repo", func(t *testing.T) {
+		t.Parallel()
+		var stdout, stderr bytes.Buffer
+		c := cmd.NewRootCmd()
+		c.SetOut(&stdout)
+		c.SetErr(&stderr)
+		c.SetArgs([]string{"-r", reposRoot, "wt", "ls", "--repo"})
+		require.NoError(t, c.ExecuteContext(context.Background()))
+		assert.Equal(t, repo1+"\n", stdout.String())
+	})
+}
+

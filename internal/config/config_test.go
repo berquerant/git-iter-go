@@ -547,3 +547,75 @@ func TestResolve_Branch(t *testing.T) {
 	}
 }
 
+func TestResolve_WorktreeRoot(t *testing.T) {
+	tests := []struct {
+		name      string
+		flags     []string
+		envKey    string
+		envVal    string
+		wantValue string
+	}{
+		{
+			name:      "default is empty",
+			wantValue: "",
+		},
+		{
+			name:      "--worktree-root flag overrides default",
+			flags:     []string{"--worktree-root", "/tmp/wt"},
+			wantValue: "/tmp/wt",
+		},
+		{
+			name:      "env overrides default",
+			envKey:    "GIT_ITER_WORKTREE_ROOT",
+			envVal:    "/opt/wt",
+			wantValue: "/opt/wt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := resolveConfig(t, tt.flags, tt.envKey, tt.envVal)
+			assert.Equal(t, tt.wantValue, cfg.WorktreeRoot)
+		})
+	}
+}
+
+func TestConfig_WorktreeRootOrFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want string
+	}{
+		{
+			name: "nil config returns empty",
+			cfg:  nil,
+			want: "",
+		},
+		{
+			name: "empty config returns empty",
+			cfg:  &config.Config{},
+			want: "",
+		},
+		{
+			name: "falls back to <ReposRoot>/git-worktree",
+			cfg:  &config.Config{ReposRoot: "/repos"},
+			want: "/repos/git-worktree",
+		},
+		{
+			name: "prefers explicit WorktreeRoot over ReposRoot",
+			cfg:  &config.Config{ReposRoot: "/repos", WorktreeRoot: "/custom/wt"},
+			want: "/custom/wt",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.cfg.WorktreeRootOrFallback())
+		})
+	}
+}
+
+
