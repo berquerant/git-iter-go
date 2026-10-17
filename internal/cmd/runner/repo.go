@@ -7,25 +7,13 @@ import (
 
 	"github.com/berquerant/git-iter-go/internal/cmd/parse"
 	"github.com/berquerant/git-iter-go/internal/config"
+	"github.com/berquerant/git-iter-go/internal/git"
 	"github.com/berquerant/git-iter-go/internal/output"
 	"github.com/berquerant/git-iter-go/internal/repo"
+	iterRunner "github.com/berquerant/git-iter-go/internal/runner"
 )
 
-// RunList executes the "list" subcommand logic.
-// finder is expected to already be filtered by ListArgs.Patterns.
-func RunList(
-	ctx context.Context,
-	cfg *config.Config,
-	outMode string,
-	_ parse.ListArgs,
-	finder repo.Finder,
-	stdout io.Writer,
-) error {
-	paths, err := finder.Find(ctx)
-	if err != nil {
-		return fmt.Errorf("list: %w", err)
-	}
-
+func writeRepoPaths(cfg *config.Config, outMode string, paths []string, stdout io.Writer) error {
 	switch outMode {
 	case outModeMarkdown, outModeMD:
 		results := make([]output.RepoResult, len(paths))
@@ -57,3 +45,65 @@ func RunList(
 		return nil
 	}
 }
+
+// RunList executes the "list" subcommand logic.
+// finder is expected to already be filtered by ListArgs.Patterns.
+func RunList(
+	ctx context.Context,
+	cfg *config.Config,
+	outMode string,
+	_ parse.ListArgs,
+	finder repo.Finder,
+	stdout io.Writer,
+) error {
+	paths, err := finder.Find(ctx)
+	if err != nil {
+		return fmt.Errorf("list: %w", err)
+	}
+	return writeRepoPaths(cfg, outMode, paths, stdout)
+}
+
+// RunGet executes the "get" subcommand logic.
+// If a.URI is empty, it lists discovered repositories via finder.
+// If a.URI is non-empty, it checks whether the corresponding local repository
+// exists under cfg.ReposRoot (via repo.IsGitRepo); if not, it clones a.URI into
+// that directory using r (routing clone output to stderr) and writes the repository
+// path to stdout.
+func RunGet(
+	ctx context.Context,
+	cfg *config.Config,
+	outMode string,
+	a parse.GetArgs,
+	finder repo.Finder,
+	r iterRunner.Runner,
+	stdout, stderr io.Writer,
+) error {
+	if a.URI == "" {
+		paths, err := finder.Find(ctx)
+		if err != nil {
+			return fmt.Errorf("get: %w", err)
+		}
+		return writeRepoPaths(cfg, outMode, paths, stdout)
+	}
+
+	targetDir, err := git.ResolveCloneDir(cfg.ReposRoot, a.URI)
+	if err != nil {
+		return fmt.Errorf("get: %w", err)
+	}
+
+	if !repo.IsGitRepo(targetDir) {
+		g := git.New(cfg.GitCommandOrFallback(), r)
+		runCtx := ctx
+		var cancel context.CancelFunc
+		if cfg.Timeout > 0 {
+			runCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+			defer cancel()
+		}
+		if err := g.Clone(runCtx, a.URI, targetDir, stderr); err != nil {
+			return fmt.Errorf("get: clone %s: %w", a.URI, err)
+		}
+	}
+
+	return writeRepoPaths(cfg, outMode, []string{targetDir}, stdout)
+}
+

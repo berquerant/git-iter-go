@@ -22,6 +22,9 @@ func TestMcpServer_Tools(t *testing.T) {
 	repo1 := testutil.MakeGitRepo(t, tmpDir, "repo1")
 	repo2 := testutil.MakeGitRepo(t, tmpDir, "repo2")
 
+	getTmpDir := t.TempDir()
+	existingRepo := testutil.MakeGitRepo(t, getTmpDir, filepath.Join("github.com", "org", "existing"))
+
 	// Create a dummy file in repo1 for git grep test
 	require.NoError(t, os.WriteFile(filepath.Join(repo1, "hello.txt"), []byte("hello world\n"), 0o644))
 
@@ -30,7 +33,7 @@ func TestMcpServer_Tools(t *testing.T) {
 		MaxProcs:  1,
 	}
 
-	server := iterMcp.NewServer(cfg, iterMcp.WithEnableDo(true))
+	server := iterMcp.NewServer(cfg, iterMcp.WithEnableDo(true), iterMcp.WithEnableGet(true))
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{Name: "test-client", Version: "v1.0.0"}, nil)
 
 	t1, t2 := mcpsdk.NewInMemoryTransports()
@@ -44,7 +47,7 @@ func TestMcpServer_Tools(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = clientSession.Close() }()
 
-	t.Run("list tools with do enabled", func(t *testing.T) {
+	t.Run("list tools with do and get enabled", func(t *testing.T) {
 		res, err := clientSession.ListTools(ctx, nil)
 		require.NoError(t, err)
 		require.NotNil(t, res)
@@ -56,13 +59,14 @@ func TestMcpServer_Tools(t *testing.T) {
 
 		assert.Contains(t, toolNames, "git_iter_list")
 		assert.Contains(t, toolNames, "git_iter_do")
+		assert.Contains(t, toolNames, "git_iter_get")
 		assert.Contains(t, toolNames, "git_iter_grep")
 		assert.Contains(t, toolNames, "git_iter_ls_files")
 		assert.Contains(t, toolNames, "git_iter_status")
 		assert.Contains(t, toolNames, "git_iter_diff")
 	})
 
-	t.Run("list tools with do disabled", func(t *testing.T) {
+	t.Run("list tools with do and get disabled", func(t *testing.T) {
 		defaultServer := iterMcp.NewServer(cfg)
 		st1, ct1 := mcpsdk.NewInMemoryTransports()
 
@@ -85,6 +89,7 @@ func TestMcpServer_Tools(t *testing.T) {
 
 		assert.Contains(t, toolNames, "git_iter_list")
 		assert.NotContains(t, toolNames, "git_iter_do")
+		assert.NotContains(t, toolNames, "git_iter_get")
 	})
 
 	tests := []struct {
@@ -261,6 +266,54 @@ func TestMcpServer_Tools(t *testing.T) {
 				require.NoError(t, json.Unmarshal(data, &out))
 				require.Len(t, out.Results, 1)
 				assert.Equal(t, repo1, out.Results[0].RepoAbsPath)
+			},
+		},
+		{
+			name:     "call git_iter_get without uri lists repositories",
+			toolName: "git_iter_get",
+			arguments: map[string]any{
+				"patterns": []string{"repo1"},
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				require.False(t, res.IsError)
+
+				data, err := json.Marshal(res.StructuredContent)
+				require.NoError(t, err)
+
+				var out iterMcp.GetToolOutput
+				require.NoError(t, json.Unmarshal(data, &out))
+				require.Len(t, out.Repositories, 1)
+				assert.Equal(t, repo1, out.Repositories[0].RepoAbsPath)
+			},
+		},
+		{
+			name:     "call git_iter_get with existing repo uri",
+			toolName: "git_iter_get",
+			arguments: map[string]any{
+				"repos_root": getTmpDir,
+				"uri":        "https://github.com/org/existing.git",
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				require.False(t, res.IsError)
+
+				data, err := json.Marshal(res.StructuredContent)
+				require.NoError(t, err)
+
+				var out iterMcp.GetToolOutput
+				require.NoError(t, json.Unmarshal(data, &out))
+				require.Len(t, out.Repositories, 1)
+				assert.Equal(t, existingRepo, out.Repositories[0].RepoAbsPath)
+				assert.Equal(t, filepath.Join("github.com", "org", "existing"), out.Repositories[0].RepoRelPath)
+			},
+		},
+		{
+			name:     "call git_iter_get with invalid uri",
+			toolName: "git_iter_get",
+			arguments: map[string]any{
+				"uri": "invalid",
+			},
+			verify: func(t *testing.T, res *mcpsdk.CallToolResult) {
+				assert.True(t, res.IsError)
 			},
 		},
 	}

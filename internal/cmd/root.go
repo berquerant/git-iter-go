@@ -126,6 +126,7 @@ Flag resolution order (highest priority wins):
 		NewDoCmd(),
 		NewGrepCmd(),
 		NewListCmd(),
+		NewGetCmd(),
 		NewReadCmd(),
 		NewPullCmd(),
 		NewFetchCmd(),

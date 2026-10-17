@@ -6,7 +6,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os/exec"
+	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -176,6 +179,32 @@ func (c *Command) ResolveDefaultBranch(ctx context.Context, dir string) (string,
 	return "", fmt.Errorf("unable to determine default branch")
 }
 
+// CloneCmd constructs argv for "git clone" with the given URI and destination directory.
+func (c *Command) CloneCmd(uri, dir string) []string {
+	return []string{c.GitBin(), "clone", uri, dir}
+}
+
+// Clone clones uri into targetDir, routing command output to stderr.
+func (c *Command) Clone(ctx context.Context, uri, targetDir string, stderr io.Writer) error {
+	return c.Run(ctx, "", []string{"clone", uri, targetDir}, stderr, stderr)
+}
+
+// ResolveCloneDir resolves the absolute local directory path under reposRoot for uri.
+func ResolveCloneDir(reposRoot, uri string) (string, error) {
+	if reposRoot == "" {
+		return "", fmt.Errorf("--repos-root (-r) is required when URI is specified")
+	}
+	absRoot, err := filepath.Abs(reposRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve repos-root: %w", err)
+	}
+	relPath, err := URI2RelPath(uri)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(absRoot, relPath), nil
+}
+
 // RemoteURL returns the remote URL for origin in dir, or an empty string if not found.
 func (c *Command) RemoteURL(ctx context.Context, dir string) (string, error) {
 	out, err := c.Output(ctx, dir, "remote", "get-url", "origin")
@@ -184,3 +213,60 @@ func (c *Command) RemoteURL(ctx context.Context, dir string) (string, error) {
 	}
 	return out, nil
 }
+
+// URI2RelPath converts a repository URI (HTTPS, HTTP, SSH, git://, SCP-like git@host:path,
+// or host/path) into a relative directory path (<host>/<path> without trailing .git).
+func URI2RelPath(uri string) (string, error) {
+	raw, err := extractHostAndPath(strings.TrimSpace(uri))
+	if err != nil {
+		return "", err
+	}
+
+	raw = strings.TrimRight(raw, "/")
+	raw = strings.TrimSuffix(raw, ".git")
+	raw = strings.TrimRight(raw, "/")
+
+	parts := strings.Split(raw, "/")
+	if len(parts) < 2 || slices.Contains(parts, "") || slices.Contains(parts, ".") || slices.Contains(parts, "..") {
+		return "", fmt.Errorf("invalid repository URI: %q", uri)
+	}
+
+	return filepath.FromSlash(strings.Join(parts, "/")), nil
+}
+
+func extractHostAndPath(s string) (string, error) {
+	if s == "" {
+		return "", fmt.Errorf("empty repository URI")
+	}
+
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil || u.Hostname() == "" {
+			return "", fmt.Errorf("invalid repository URI: %q", s)
+		}
+		return u.Hostname() + "/" + strings.TrimPrefix(u.Path, "/"), nil
+	}
+
+	// Handle SCP-like syntax: [user@]host:path
+	colon := strings.IndexByte(s, ':')
+	slash := strings.IndexByte(s, '/')
+	if colon > 0 && (slash < 0 || colon < slash) {
+		host := s[:colon]
+		if at := strings.IndexByte(host, '@'); at >= 0 {
+			host = host[at+1:]
+		}
+		return host + "/" + strings.TrimPrefix(s[colon+1:], "/"), nil
+	}
+
+	// Handle scheme-less [user@]host/path
+	if slash > 0 {
+		host := s[:slash]
+		if at := strings.IndexByte(host, '@'); at >= 0 {
+			host = host[at+1:]
+		}
+		return host + "/" + s[slash+1:], nil
+	}
+
+	return "", fmt.Errorf("invalid repository URI: %q", s)
+}
+

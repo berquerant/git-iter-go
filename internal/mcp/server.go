@@ -11,7 +11,8 @@ import (
 type ServerOption func(*serverConfig)
 
 type serverConfig struct {
-	enableDo bool
+	enableDo  bool
+	enableGet bool
 }
 
 // WithEnableDo enables the git_iter_do tool on the MCP server.
@@ -21,8 +22,15 @@ func WithEnableDo(enable bool) ServerOption {
 	}
 }
 
+// WithEnableGet enables the git_iter_get tool on the MCP server.
+func WithEnableGet(enable bool) ServerOption {
+	return func(c *serverConfig) {
+		c.enableGet = enable
+	}
+}
+
 // NewServer constructs and registers tools for an MCP server instance.
-// By default, the git_iter_do tool is disabled unless WithEnableDo(true) is provided.
+// By default, the git_iter_do and git_iter_get tools are disabled unless enabled via options.
 func NewServer(cfg *config.Config, opts ...ServerOption) *mcpsdk.Server {
 	var optConfig serverConfig
 	for _, opt := range opts {
@@ -40,6 +48,9 @@ func NewServer(cfg *config.Config, opts ...ServerOption) *mcpsdk.Server {
 	if optConfig.enableDo {
 		tool.RegisterDo(server, cfg)
 	}
+	if optConfig.enableGet {
+		tool.RegisterGet(server, cfg)
+	}
 	tool.RegisterGrep(server, cfg)
 	tool.RegisterLsFiles(server, cfg)
 	tool.RegisterStatus(server, cfg)
@@ -47,3 +58,4 @@ func NewServer(cfg *config.Config, opts ...ServerOption) *mcpsdk.Server {
 
 	return server
 }
+

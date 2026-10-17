@@ -8,6 +8,12 @@ import (
 	"path/filepath"
 )
 
+// IsGitRepo reports whether dir contains a ".git" entry (file or directory).
+func IsGitRepo(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}
+
 // FilesystemFinder walks Root recursively and returns every directory that
 // contains a ".git" entry (file or directory).
 type FilesystemFinder struct {
@@ -27,7 +33,7 @@ func (f *FilesystemFinder) Find(ctx context.Context) ([]string, error) {
 			return nil
 		}
 		// Check for .git inside this directory.
-		if _, statErr := os.Stat(filepath.Join(path, ".git")); statErr == nil {
+		if IsGitRepo(path) {
 			repos = append(repos, path)
 			// Don't descend into nested git repos.
 			return filepath.SkipDir

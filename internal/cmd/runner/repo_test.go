@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/berquerant/git-iter-go/internal/cmd/parse"
 	"github.com/berquerant/git-iter-go/internal/cmd/runner"
@@ -81,3 +84,118 @@ func TestRunList_Markdown(t *testing.T) {
 	want := "# List: root = /repos\n\n- a\n- b\n\n---\n\n## Summary\n\n- **Total Repositories**: 2\n\n"
 	assert.Equal(t, want, stdout.String())
 }
+
+func TestRunGet(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no URI lists repositories", func(t *testing.T) {
+		t.Parallel()
+		cfg := &config.Config{ReposRoot: "/repos"}
+		finder := &testutil.FakeFinder{Paths: []string{"/repos/a", "/repos/b"}}
+		r := &testutil.FakeRunner{}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunGet(context.Background(), cfg, "text", parse.GetArgs{}, finder, r, &stdout, &stderr)
+		require.NoError(t, err)
+		assert.Equal(t, "/repos/a\n/repos/b\n", stdout.String())
+		assert.Empty(t, r.Calls)
+	})
+
+	t.Run("existing repository does not clone", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		existing := testutil.MakeGitRepo(t, root, filepath.Join("github.com", "berquerant", "git-iter-go"))
+
+		cfg := &config.Config{ReposRoot: root}
+		finder := &testutil.FakeFinder{}
+		r := &testutil.FakeRunner{}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunGet(
+			context.Background(),
+			cfg,
+			"text",
+			parse.GetArgs{URI: "https://github.com/berquerant/git-iter-go.git"},
+			finder,
+			r,
+			&stdout,
+			&stderr,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, existing+"\n", stdout.String())
+		assert.Empty(t, r.Calls)
+	})
+
+	t.Run("missing repository clones and outputs path to stdout while clone logs go to stderr", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		wantDir := filepath.Join(root, "github.com", "berquerant", "git-iter-go")
+
+		cfg := &config.Config{
+			ReposRoot: root,
+			Timeout:   5 * time.Second,
+		}
+		finder := &testutil.FakeFinder{}
+		r := &testutil.FakeRunner{Output: "Cloning into...\n"}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunGet(
+			context.Background(),
+			cfg,
+			"text",
+			parse.GetArgs{URI: "git@github.com:berquerant/git-iter-go.git"},
+			finder,
+			r,
+			&stdout,
+			&stderr,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, wantDir+"\n", stdout.String())
+		assert.Equal(t, "Cloning into...\n", stderr.String())
+		require.Len(t, r.Calls, 1)
+		assert.Equal(t, []string{"git", "clone", "git@github.com:berquerant/git-iter-go.git", wantDir}, r.Calls[0].Command)
+	})
+
+	t.Run("clone failure returns error", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		cfg := &config.Config{ReposRoot: root}
+		finder := &testutil.FakeFinder{}
+		r := &testutil.FakeRunner{Err: errors.New("clone failed")}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunGet(
+			context.Background(),
+			cfg,
+			"text",
+			parse.GetArgs{URI: "https://github.com/berquerant/git-iter-go.git"},
+			finder,
+			r,
+			&stdout,
+			&stderr,
+		)
+		require.Error(t, err)
+		assert.Empty(t, stdout.String())
+	})
+
+	t.Run("missing repos-root with URI returns error", func(t *testing.T) {
+		t.Parallel()
+		cfg := &config.Config{}
+		finder := &testutil.FakeFinder{}
+		r := &testutil.FakeRunner{}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunGet(
+			context.Background(),
+			cfg,
+			"text",
+			parse.GetArgs{URI: "https://github.com/berquerant/git-iter-go.git"},
+			finder,
+			r,
+			&stdout,
+			&stderr,
+		)
+		require.Error(t, err)
+	})
+}
+

@@ -19,4 +19,6 @@ type (
 	StatusToolOutput      = tool.StatusToolOutput
 	DiffToolInput         = tool.DiffToolInput
 	DiffToolOutput        = tool.DiffToolOutput
+	GetToolInput          = tool.GetToolInput
+	GetToolOutput         = tool.GetToolOutput
 )
