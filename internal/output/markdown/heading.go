@@ -12,6 +12,7 @@ var (
 	WriteMarkdownSummary        = markdown.WriteSummary
 	WriteRepoMarkdown           = markdown.WriteRepo
 	WriteListMarkdown           = markdown.WriteList
+	WriteWorktreeList           = markdown.WriteWorktreeList
 	ParseResultFiles            = markdown.ParseResultFiles
 	WriteLsFilesMarkdown        = markdown.WriteLsFiles
 	WriteLsFilesMarkdownSummary = markdown.WriteLsFilesSummary

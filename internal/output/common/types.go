@@ -22,6 +22,16 @@ type RepoResult struct {
 	RepoRelPath string `json:"repo_rel_path"` // path relative to repos root
 }
 
+// WorktreeResult is the JSON representation for subcommands that list or manage
+// git worktrees (e.g. "worktree list").
+type WorktreeResult struct {
+	WorktreeAbsPath string `json:"worktree_abs_path"` // absolute path of the worktree
+	WorktreeRelPath string `json:"worktree_rel_path"` // worktree path relative to worktree root
+	RepoAbsPath     string `json:"repo_abs_path"`     // absolute path of the main repository
+	RepoRelPath     string `json:"repo_rel_path"`     // main repository path relative to repos root
+	Branch          string `json:"branch"`            // branch checked out in the worktree
+}
+
 // FileResult is the JSON representation for subcommands that list files
 // across repositories (e.g. "ls-files").
 type FileResult struct {

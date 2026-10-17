@@ -219,6 +219,31 @@ func TestResolveMainRepoFromWorktree(t *testing.T) {
 	}
 }
 
+func TestResolveMainRepoFromWorktree_LinkedGitWorktree(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	reposRoot := filepath.Join(tmp, "repos")
+	wtRoot := filepath.Join(tmp, "worktrees")
+	mainRepo := filepath.Join(reposRoot, "github.com", "org", "myrepo")
+	mainGitDir := filepath.Join(mainRepo, ".git")
+	require.NoError(t, os.MkdirAll(mainGitDir, 0o755))
+
+	wtGitDir := filepath.Join(mainGitDir, "worktrees", "feat-wt")
+	require.NoError(t, os.MkdirAll(wtGitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(wtGitDir, "commondir"), []byte("../..\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(wtGitDir, "HEAD"), []byte("ref: refs/heads/feature/login\n"), 0o644))
+
+	wtDir := filepath.Join(wtRoot, "org", "myrepo", "feat-wt")
+	require.NoError(t, os.MkdirAll(wtDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(wtDir, ".git"), []byte("gitdir: "+wtGitDir+"\n"), 0o644))
+
+	gotRepo, gotBranch, err := git.ResolveMainRepoFromWorktree(reposRoot, wtRoot, wtDir)
+	require.NoError(t, err)
+	assert.Equal(t, mainRepo, gotRepo)
+	assert.Equal(t, "feature/login", gotBranch)
+}
+
 func TestCommand_WorktreeCommands(t *testing.T) {
 	t.Parallel()
 
@@ -357,4 +382,43 @@ func TestCommand_IsMerged(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestFindMainRepo(t *testing.T) {
+	t.Parallel()
+
+	reposRoot := t.TempDir()
+	wtRoot := filepath.Join(reposRoot, "git-worktree")
+	mainRepo := filepath.Join(reposRoot, "org", "repo1")
+	mainGitDir := filepath.Join(mainRepo, ".git")
+	require.NoError(t, os.MkdirAll(mainGitDir, 0o755))
+
+	wtRepo := filepath.Join(wtRoot, "org", "repo1", "feat-1")
+	require.NoError(t, os.MkdirAll(wtRepo, 0o755))
+
+	linkedWorktreeGitDir := filepath.Join(mainGitDir, "worktrees", "feat-1")
+	require.NoError(t, os.MkdirAll(linkedWorktreeGitDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(wtRepo, ".git"), []byte("gitdir: "+linkedWorktreeGitDir+"\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(linkedWorktreeGitDir, "commondir"), []byte("../../\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(linkedWorktreeGitDir, "HEAD"), []byte("ref: refs/heads/feat-1\n"), 0o644))
+
+	t.Run("inside main repo", func(t *testing.T) {
+		t.Parallel()
+		got, err := git.FindMainRepo(reposRoot, wtRoot, mainRepo)
+		require.NoError(t, err)
+		assert.Equal(t, mainRepo, got)
+	})
+
+	t.Run("inside linked worktree", func(t *testing.T) {
+		t.Parallel()
+		got, err := git.FindMainRepo(reposRoot, wtRoot, wtRepo)
+		require.NoError(t, err)
+		assert.Equal(t, mainRepo, got)
+	})
+
+	t.Run("non git directory", func(t *testing.T) {
+		t.Parallel()
+		_, err := git.FindMainRepo(reposRoot, wtRoot, t.TempDir())
+		require.Error(t, err)
+	})
 }

@@ -6,13 +6,20 @@ import "fmt"
 type WorktreeListArgs struct {
 	Patterns []string // worktree path filter regexps; empty means all
 	Repo     bool     // --repo: output unique main repository paths instead of worktree paths
+	All      bool     // -a, --all: list across all repositories instead of current repository
+	RepoDir  string   // target repo directory when All is false (defaults to cwd)
 }
 
 // ParseWorktreeListArgs parses raw cobra args and flags into WorktreeListArgs.
-func ParseWorktreeListArgs(args []string, repoOnly bool) WorktreeListArgs {
+func ParseWorktreeListArgs(args []string, repoOnly bool, all ...bool) WorktreeListArgs {
+	isAll := false
+	if len(all) > 0 {
+		isAll = all[0]
+	}
 	return WorktreeListArgs{
 		Patterns: args,
 		Repo:     repoOnly,
+		All:      isAll,
 	}
 }
 

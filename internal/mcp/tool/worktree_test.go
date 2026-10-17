@@ -114,6 +114,10 @@ func TestWorktreeTools(t *testing.T) {
 		require.NoError(t, json.Unmarshal(data, &out))
 		require.Len(t, out.Repositories, 1)
 		assert.Equal(t, expectedWT, out.Repositories[0].RepoAbsPath)
+		require.Len(t, out.Worktrees, 1)
+		assert.Equal(t, expectedWT, out.Worktrees[0].WorktreeAbsPath)
+		assert.Equal(t, repo1, out.Worktrees[0].RepoAbsPath)
+		assert.Equal(t, "feat-wt", out.Worktrees[0].Branch)
 
 		resRepo, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 			Name:      "git_iter_worktree_list",
@@ -129,6 +133,7 @@ func TestWorktreeTools(t *testing.T) {
 		require.NoError(t, json.Unmarshal(dataRepo, &outRepo))
 		require.Len(t, outRepo.Repositories, 1)
 		assert.Equal(t, repo1, outRepo.Repositories[0].RepoAbsPath)
+		assert.Empty(t, outRepo.Worktrees)
 	})
 
 	t.Run("worktree prune and remove", func(t *testing.T) {

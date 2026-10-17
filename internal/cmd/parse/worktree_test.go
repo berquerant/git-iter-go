@@ -11,11 +11,25 @@ import (
 func TestParseWorktreeListArgs(t *testing.T) {
 	t.Parallel()
 
-	got := parse.ParseWorktreeListArgs([]string{"org", "repo"}, true)
-	assert.Equal(t, parse.WorktreeListArgs{
-		Patterns: []string{"org", "repo"},
-		Repo:     true,
-	}, got)
+	t.Run("defaults all to false", func(t *testing.T) {
+		t.Parallel()
+		got := parse.ParseWorktreeListArgs([]string{"org", "repo"}, true)
+		assert.Equal(t, parse.WorktreeListArgs{
+			Patterns: []string{"org", "repo"},
+			Repo:     true,
+			All:      false,
+		}, got)
+	})
+
+	t.Run("with all true", func(t *testing.T) {
+		t.Parallel()
+		got := parse.ParseWorktreeListArgs([]string{"org", "repo"}, false, true)
+		assert.Equal(t, parse.WorktreeListArgs{
+			Patterns: []string{"org", "repo"},
+			Repo:     false,
+			All:      true,
+		}, got)
+	})
 }
 
 func TestParseWorktreeAddArgs(t *testing.T) {

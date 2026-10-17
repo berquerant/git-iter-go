@@ -415,16 +415,26 @@ func TestInvalidRegexFlags(t *testing.T) {
 }
 
 func TestWorktreeCmd(t *testing.T) {
-	t.Parallel()
-
 	reposRoot := t.TempDir()
 	wtRoot := filepath.Join(reposRoot, "git-worktree")
 	repo1 := testutil.MakeGitRepo(t, reposRoot, filepath.Join("org", "repo1"))
 	wt1 := testutil.MakeGitRepo(t, wtRoot, filepath.Join("org", "repo1", "feat-1"))
 	wt2 := testutil.MakeGitRepo(t, wtRoot, filepath.Join("org", "repo1", "feat-2"))
 
-	t.Run("worktree list", func(t *testing.T) {
-		t.Parallel()
+	t.Run("worktree list --all and -a", func(t *testing.T) {
+		for _, flag := range []string{"--all", "-a"} {
+			var stdout, stderr bytes.Buffer
+			c := cmd.NewRootCmd()
+			c.SetOut(&stdout)
+			c.SetErr(&stderr)
+			c.SetArgs([]string{"-r", reposRoot, "--sort", "worktree", "list", flag})
+			require.NoError(t, c.ExecuteContext(context.Background()))
+			assert.Equal(t, wt1+"\n"+wt2+"\n", stdout.String())
+		}
+	})
+
+	t.Run("worktree list defaults to current repo", func(t *testing.T) {
+		t.Chdir(repo1)
 		var stdout, stderr bytes.Buffer
 		c := cmd.NewRootCmd()
 		c.SetOut(&stdout)
@@ -434,13 +444,12 @@ func TestWorktreeCmd(t *testing.T) {
 		assert.Equal(t, wt1+"\n"+wt2+"\n", stdout.String())
 	})
 
-	t.Run("worktree list --repo", func(t *testing.T) {
-		t.Parallel()
+	t.Run("worktree list --repo with --all", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		c := cmd.NewRootCmd()
 		c.SetOut(&stdout)
 		c.SetErr(&stderr)
-		c.SetArgs([]string{"-r", reposRoot, "wt", "ls", "--repo"})
+		c.SetArgs([]string{"-r", reposRoot, "wt", "ls", "--repo", "-a"})
 		require.NoError(t, c.ExecuteContext(context.Background()))
 		assert.Equal(t, repo1+"\n", stdout.String())
 	})

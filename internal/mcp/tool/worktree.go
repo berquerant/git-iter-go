@@ -25,7 +25,8 @@ type WorktreeListToolInput struct {
 
 // WorktreeListToolOutput defines output for git_iter_worktree_list tool.
 type WorktreeListToolOutput struct {
-	Repositories []output.RepoResult `json:"repositories" jsonschema:"discovered worktrees or corresponding main repositories"`
+	Worktrees    []output.WorktreeResult `json:"worktrees,omitempty" jsonschema:"discovered worktrees with main repository path and branch"`
+	Repositories []output.RepoResult     `json:"repositories,omitempty" jsonschema:"discovered worktrees or corresponding main repositories"`
 }
 
 // WorktreeAddToolInput defines parameters for git_iter_worktree_add tool.
@@ -139,17 +140,36 @@ func RegisterWorktreeList(server *mcpsdk.Server, cfg *config.Config) {
 			return nil, WorktreeListToolOutput{}, err
 		}
 
-		paths := wtPaths
-		relBase := wtRoot
+		wtResults := make([]output.WorktreeResult, len(wtPaths))
+		for i, wtPath := range wtPaths {
+			mainRepo, branch, _ := git.ResolveMainRepoFromWorktree(reposRoot, wtRoot, wtPath)
+			var repoRel string
+			if mainRepo != "" && reposRoot != "" {
+				repoRel = output.RelPath(reposRoot, mainRepo)
+			}
+			wtResults[i] = output.WorktreeResult{
+				WorktreeAbsPath: wtPath,
+				WorktreeRelPath: output.RelPath(wtRoot, wtPath),
+				RepoAbsPath:     mainRepo,
+				RepoRelPath:     repoRel,
+				Branch:          branch,
+			}
+		}
+
 		if in.Repo {
-			paths, err = git.ResolveUniqueMainRepos(reposRoot, wtRoot, wtPaths)
+			mainRepos, err := git.ResolveUniqueMainRepos(reposRoot, wtRoot, wtPaths)
 			if err != nil {
 				return nil, WorktreeListToolOutput{}, err
 			}
-			relBase = reposRoot
+			return nil, WorktreeListToolOutput{
+				Repositories: toRepoResults(reposRoot, mainRepos),
+			}, nil
 		}
 
-		return nil, WorktreeListToolOutput{Repositories: toRepoResults(relBase, paths)}, nil
+		return nil, WorktreeListToolOutput{
+			Worktrees:    wtResults,
+			Repositories: toRepoResults(wtRoot, wtPaths),
+		}, nil
 	})
 }
 

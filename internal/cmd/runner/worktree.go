@@ -10,6 +10,7 @@ import (
 	"github.com/berquerant/git-iter-go/internal/cmd/parse"
 	"github.com/berquerant/git-iter-go/internal/config"
 	"github.com/berquerant/git-iter-go/internal/git"
+	"github.com/berquerant/git-iter-go/internal/output"
 	"github.com/berquerant/git-iter-go/internal/repo"
 	iterRunner "github.com/berquerant/git-iter-go/internal/runner"
 )
@@ -23,6 +24,74 @@ func findWorktreePaths(ctx context.Context, wtFinder repo.Finder) ([]string, err
 		return nil, err
 	}
 	return paths, nil
+}
+
+func buildWorktreeResults(reposRoot, wtRoot string, wtPaths []string) []output.WorktreeResult {
+	results := make([]output.WorktreeResult, len(wtPaths))
+	for i, wtPath := range wtPaths {
+		mainRepo, branch, _ := git.ResolveMainRepoFromWorktree(reposRoot, wtRoot, wtPath)
+		var repoRel string
+		if mainRepo != "" && reposRoot != "" {
+			repoRel = output.RelPath(reposRoot, mainRepo)
+		}
+		results[i] = output.WorktreeResult{
+			WorktreeAbsPath: wtPath,
+			WorktreeRelPath: output.RelPath(wtRoot, wtPath),
+			RepoAbsPath:     mainRepo,
+			RepoRelPath:     repoRel,
+			Branch:          branch,
+		}
+	}
+	return results
+}
+
+func writeWorktreeResults(cfg *config.Config, wtRoot, outMode string, results []output.WorktreeResult, stdout io.Writer) error {
+	switch outMode {
+	case outModeMarkdown, outModeMD:
+		return output.WriteWorktreeListMarkdown(stdout, results, wtRoot, cfg.MarkdownHeaderLevel)
+	case outModeJSON:
+		for _, r := range results {
+			if err := output.WriteWorktreeJSONL(stdout, r); err != nil {
+				return err
+			}
+		}
+		return nil
+	default: // "text"
+		for _, r := range results {
+			if _, err := fmt.Fprintln(stdout, r.WorktreeAbsPath); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func filterWorktreeResultsByRepo(results []output.WorktreeResult, targetRepo string) []output.WorktreeResult {
+	if targetRepo == "" {
+		return results
+	}
+	filtered := make([]output.WorktreeResult, 0, len(results))
+	for _, r := range results {
+		if r.RepoAbsPath == targetRepo {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}
+
+func extractUniqueMainRepos(results []output.WorktreeResult) []string {
+	seen := make(map[string]struct{})
+	var repos []string
+	for _, r := range results {
+		if r.RepoAbsPath == "" {
+			continue
+		}
+		if _, ok := seen[r.RepoAbsPath]; !ok {
+			seen[r.RepoAbsPath] = struct{}{}
+			repos = append(repos, r.RepoAbsPath)
+		}
+	}
+	return repos
 }
 
 // RunWorktreeList executes the "worktree list" subcommand logic.
@@ -39,25 +108,34 @@ func RunWorktreeList(
 		return fmt.Errorf("worktree list: worktree root is not configured")
 	}
 
+	var targetMainRepo string
+	if !a.All && a.RepoDir != "" {
+		mainRepo, err := git.FindMainRepo(cfg.ReposRoot, wtRoot, a.RepoDir)
+		if err != nil {
+			return fmt.Errorf("worktree list: %w", err)
+		}
+		targetMainRepo = mainRepo
+	}
+
 	wtPaths, err := findWorktreePaths(ctx, wtFinder)
 	if err != nil {
 		return fmt.Errorf("worktree list: %w", err)
 	}
 
+	wtResults := buildWorktreeResults(cfg.ReposRoot, wtRoot, wtPaths)
+	wtResults = filterWorktreeResultsByRepo(wtResults, targetMainRepo)
+
 	if a.Repo {
-		mainRepos, err := git.ResolveUniqueMainRepos(cfg.ReposRoot, wtRoot, wtPaths)
-		if err != nil {
-			return fmt.Errorf("worktree list: %w", err)
-		}
+		mainRepos := extractUniqueMainRepos(wtResults)
 		return writeRepoPaths(cfg, outMode, mainRepos, stdout)
 	}
 
-	return writeRepoPathsWithRoot(wtRoot, cfg.MarkdownHeaderLevel, outMode, wtPaths, stdout)
+	return writeWorktreeResults(cfg, wtRoot, outMode, wtResults, stdout)
 }
 
 func resolveRepoWorktree(cfg *config.Config, repoDir, branch string) (string, string, string, error) {
 	wtRoot := cfg.WorktreeRootOrFallback()
-	repoRoot, err := git.FindRepoRoot(repoDir)
+	repoRoot, err := git.FindMainRepo(cfg.ReposRoot, wtRoot, repoDir)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -98,7 +176,14 @@ func RunWorktreeAdd(
 		return fmt.Errorf("worktree add: %w", err)
 	}
 
-	return writeRepoPathsWithRoot(wtRoot, cfg.MarkdownHeaderLevel, outMode, []string{wtPath}, stdout)
+	res := output.WorktreeResult{
+		WorktreeAbsPath: wtPath,
+		WorktreeRelPath: output.RelPath(wtRoot, wtPath),
+		RepoAbsPath:     repoRoot,
+		RepoRelPath:     output.RelPath(cfg.ReposRoot, repoRoot),
+		Branch:          a.TargetBranch(),
+	}
+	return writeWorktreeResults(cfg, wtRoot, outMode, []output.WorktreeResult{res}, stdout)
 }
 
 // RunWorktreeRemove executes the "worktree remove" subcommand logic for the repository at repoDir.
@@ -152,7 +237,7 @@ func RunWorktreePrune(
 			return fmt.Errorf("worktree prune: %w", err)
 		}
 	} else {
-		repoRoot, err := git.FindRepoRoot(repoDir)
+		repoRoot, err := git.FindMainRepo(cfg.ReposRoot, wtRoot, repoDir)
 		if err != nil {
 			return fmt.Errorf("worktree prune: %w", err)
 		}

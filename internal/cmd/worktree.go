@@ -33,19 +33,23 @@ For a repository located at <repos-root>/<DIR>, worktrees for <BRANCH> are place
 
 // NewWorktreeListCmd returns the "worktree list" (aliases: "ls", "l") sub-command.
 func NewWorktreeListCmd() *cobra.Command {
-	var repoOnly bool
+	var (
+		repoOnly bool
+		all      bool
+	)
 
 	cmd := &cobra.Command{
-		Use:     "list [REPO_REGEX...]",
+		Use:     "list [FLAGS] [REPO_REGEX...]",
 		Aliases: []string{"ls", "l"},
 		Short:   "List git worktrees or their corresponding main repositories",
 		Long: LongDoc{
-			Header:     "Print the absolute path of every discovered git worktree under --worktree-root matching REPO_REGEX.",
+			Header:     "Print the absolute path of discovered git worktrees under --worktree-root matching REPO_REGEX. By default, only worktrees for the current repository are listed. Use -a/--all to list worktrees for all repositories.",
 			RepoFilter: true,
 			Sections: []Section{
 				{
 					Title: "Flags:",
 					Items: []Item{
+						{Term: "-a, --all", Desc: "list worktrees across all repositories under worktree-root"},
 						{Term: "--repo", Desc: "print unique main repository paths corresponding to discovered worktrees"},
 					},
 				},
@@ -53,18 +57,30 @@ func NewWorktreeListCmd() *cobra.Command {
 			OutputModes: RepoListOutputModeDoc(),
 			Examples: []Example{
 				{
-					Desc:    "List all worktrees",
+					Desc:    "List worktrees for the current repository",
 					Command: "git-iter -r /repos worktree list",
 				},
 				{
+					Desc:    "List all worktrees across all repositories",
+					Command: "git-iter -r /repos worktree list -a",
+				},
+				{
 					Desc:    "List unique main repositories that have worktrees",
-					Command: "git-iter -r /repos worktree list --repo",
+					Command: "git-iter -r /repos worktree list --repo -a",
 				},
 			},
 		}.Build(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := ConfigFromContext(cmd.Context())
-			listArgs := ParseWorktreeListArgs(args, repoOnly)
+			isAll := all || (cmd.Flag("abs-path") != nil && cmd.Flag("abs-path").Changed)
+			listArgs := ParseWorktreeListArgs(args, repoOnly, isAll)
+			if !listArgs.All {
+				wd, err := os.Getwd()
+				if err != nil {
+					return fmt.Errorf("worktree list: %w", err)
+				}
+				listArgs.RepoDir = wd
+			}
 
 			finder, err := buildWorktreeFinder(cfg, listArgs.Patterns)
 			if err != nil {
@@ -82,6 +98,8 @@ func NewWorktreeListCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&all, "all", false,
+		"list worktrees across all repositories under worktree-root")
 	cmd.Flags().BoolVar(&repoOnly, "repo", false,
 		"list unique main repository paths corresponding to discovered worktrees")
 

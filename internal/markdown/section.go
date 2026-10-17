@@ -125,3 +125,48 @@ func WriteList(w io.Writer, results []common.RepoResult, reposRoot string, heade
 	_, err := io.WriteString(w, sb.String())
 	return err
 }
+
+// WriteWorktreeList writes the complete worktree list output in Markdown format:
+// a top heading, a list of worktrees with branch and main repository paths, and a summary section.
+func WriteWorktreeList(w io.Writer, results []common.WorktreeResult, worktreeRoot string, headerLevel int) error {
+	topLevel := max(headerLevel-1, 1)
+	hTop := HeadingPrefix(topLevel)
+	hSum := HeadingPrefix(headerLevel)
+
+	var sb strings.Builder
+	if worktreeRoot != "" {
+		fmt.Fprintf(&sb, "%s Worktree List: root = %s\n\n", hTop, worktreeRoot)
+	} else {
+		fmt.Fprintf(&sb, "%s Worktree List\n\n", hTop)
+	}
+
+	for _, r := range results {
+		name := r.WorktreeRelPath
+		if name == "" {
+			name = r.WorktreeAbsPath
+		}
+		repo := r.RepoRelPath
+		if repo == "" {
+			repo = r.RepoAbsPath
+		}
+		if r.Branch != "" && repo != "" {
+			fmt.Fprintf(&sb, "- %s (branch: `%s`, repo: `%s`)\n", name, r.Branch, repo)
+		} else if r.Branch != "" {
+			fmt.Fprintf(&sb, "- %s (branch: `%s`)\n", name, r.Branch)
+		} else if repo != "" {
+			fmt.Fprintf(&sb, "- %s (repo: `%s`)\n", name, repo)
+		} else {
+			fmt.Fprintf(&sb, "- %s\n", name)
+		}
+	}
+	if len(results) > 0 {
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("---\n\n")
+	fmt.Fprintf(&sb, "%s Summary\n\n", hSum)
+	fmt.Fprintf(&sb, "- **Total Worktrees**: %d\n\n", len(results))
+
+	_, err := io.WriteString(w, sb.String())
+	return err
+}

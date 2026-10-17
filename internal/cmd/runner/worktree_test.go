@@ -3,6 +3,7 @@ package runner_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/berquerant/git-iter-go/internal/cmd/parse"
 	"github.com/berquerant/git-iter-go/internal/cmd/runner"
 	"github.com/berquerant/git-iter-go/internal/config"
+	"github.com/berquerant/git-iter-go/internal/output"
 	"github.com/berquerant/git-iter-go/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,13 +37,37 @@ func TestRunWorktreeList(t *testing.T) {
 		WorktreeRoot: wtRoot,
 	}
 
-	t.Run("lists worktree paths", func(t *testing.T) {
+	t.Run("filters worktree paths by RepoDir", func(t *testing.T) {
 		t.Parallel()
 		finder := &testutil.FakeFinder{Paths: []string{wt1, wt2, wt3}}
 		var stdout bytes.Buffer
-		err := runner.RunWorktreeList(context.Background(), cfg, "text", parse.WorktreeListArgs{}, finder, &stdout)
+		err := runner.RunWorktreeList(context.Background(), cfg, "text", parse.WorktreeListArgs{RepoDir: repo1}, finder, &stdout)
 		require.NoError(t, err)
-		assert.Equal(t, wt1+"\n"+wt2+"\n"+wt3+"\n", stdout.String())
+		assert.Equal(t, wt1+"\n"+wt2+"\n", stdout.String())
+	})
+
+	t.Run("lists worktree in json mode", func(t *testing.T) {
+		t.Parallel()
+		finder := &testutil.FakeFinder{Paths: []string{wt1}}
+		var stdout bytes.Buffer
+		err := runner.RunWorktreeList(context.Background(), cfg, "json", parse.WorktreeListArgs{}, finder, &stdout)
+		require.NoError(t, err)
+		var item output.WorktreeResult
+		require.NoError(t, json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &item))
+		assert.Equal(t, wt1, item.WorktreeAbsPath)
+		assert.Equal(t, repo1, item.RepoAbsPath)
+		assert.Equal(t, filepath.Join("org", "repo1", "feat-a"), item.WorktreeRelPath)
+		assert.Equal(t, filepath.Join("org", "repo1"), item.RepoRelPath)
+	})
+
+	t.Run("lists worktree in markdown mode", func(t *testing.T) {
+		t.Parallel()
+		finder := &testutil.FakeFinder{Paths: []string{wt1}}
+		var stdout bytes.Buffer
+		err := runner.RunWorktreeList(context.Background(), cfg, "markdown", parse.WorktreeListArgs{}, finder, &stdout)
+		require.NoError(t, err)
+		assert.Contains(t, stdout.String(), "Worktree List")
+		assert.Contains(t, stdout.String(), filepath.Join("org", "repo1", "feat-a"))
 	})
 
 	t.Run("lists unique main repo paths when Repo is true", func(t *testing.T) {
@@ -51,6 +77,18 @@ func TestRunWorktreeList(t *testing.T) {
 		err := runner.RunWorktreeList(context.Background(), cfg, "text", parse.WorktreeListArgs{Repo: true}, finder, &stdout)
 		require.NoError(t, err)
 		assert.Equal(t, repo1+"\n"+repo2+"\n", stdout.String())
+	})
+
+	t.Run("lists unique main repos in json mode when Repo is true", func(t *testing.T) {
+		t.Parallel()
+		finder := &testutil.FakeFinder{Paths: []string{wt1, wt2}}
+		var stdout bytes.Buffer
+		err := runner.RunWorktreeList(context.Background(), cfg, "json", parse.WorktreeListArgs{Repo: true}, finder, &stdout)
+		require.NoError(t, err)
+		var item output.RepoResult
+		require.NoError(t, json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &item))
+		assert.Equal(t, repo1, item.RepoAbsPath)
+		assert.Equal(t, filepath.Join("org", "repo1"), item.RepoRelPath)
 	})
 
 	t.Run("errors when worktree root is empty", func(t *testing.T) {
