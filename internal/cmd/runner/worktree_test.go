@@ -152,7 +152,65 @@ func TestRunWorktreeAddAndRemove(t *testing.T) {
 		require.Len(t, fake.Calls, 1)
 		assert.Equal(t, []string{"git", "worktree", "remove", "--force", "--", wantWT}, fake.Calls[0].Command)
 	})
+
+	t.Run("remove branch with delete branch", func(t *testing.T) {
+		t.Parallel()
+		fake := &testutil.FakeRunner{}
+		var stderr bytes.Buffer
+		err := runner.RunWorktreeRemove(
+			context.Background(),
+			cfg,
+			parse.WorktreeRemoveArgs{Branch: "feat-1", DeleteBranch: true},
+			repoDir,
+			fake,
+			&stderr,
+		)
+		require.NoError(t, err)
+		wantWT := filepath.Join(wtRoot, "org", "repo", "feat-1")
+		require.Len(t, fake.Calls, 2)
+		assert.Equal(t, []string{"git", "worktree", "remove", "--", wantWT}, fake.Calls[0].Command)
+		assert.Equal(t, []string{"git", "branch", "-d", "--", "feat-1"}, fake.Calls[1].Command)
+	})
+
+	t.Run("remove branch with force and delete branch", func(t *testing.T) {
+		t.Parallel()
+		fake := &testutil.FakeRunner{}
+		var stderr bytes.Buffer
+		err := runner.RunWorktreeRemove(
+			context.Background(),
+			cfg,
+			parse.WorktreeRemoveArgs{Branch: "feat-1", Force: true, DeleteBranch: true},
+			repoDir,
+			fake,
+			&stderr,
+		)
+		require.NoError(t, err)
+		wantWT := filepath.Join(wtRoot, "org", "repo", "feat-1")
+		require.Len(t, fake.Calls, 2)
+		assert.Equal(t, []string{"git", "worktree", "remove", "--force", "--", wantWT}, fake.Calls[0].Command)
+		assert.Equal(t, []string{"git", "branch", "-D", "--", "feat-1"}, fake.Calls[1].Command)
+	})
+
+	t.Run("remove branch with force delete branch (-D)", func(t *testing.T) {
+		t.Parallel()
+		fake := &testutil.FakeRunner{}
+		var stderr bytes.Buffer
+		err := runner.RunWorktreeRemove(
+			context.Background(),
+			cfg,
+			parse.WorktreeRemoveArgs{Branch: "feat-1", Force: true, DeleteBranch: true, ForceDeleteBranch: true},
+			repoDir,
+			fake,
+			&stderr,
+		)
+		require.NoError(t, err)
+		wantWT := filepath.Join(wtRoot, "org", "repo", "feat-1")
+		require.Len(t, fake.Calls, 2)
+		assert.Equal(t, []string{"git", "worktree", "remove", "--force", "--", wantWT}, fake.Calls[0].Command)
+		assert.Equal(t, []string{"git", "branch", "-D", "--", "feat-1"}, fake.Calls[1].Command)
+	})
 }
+
 
 func TestRunWorktreePrune(t *testing.T) {
 	t.Parallel()

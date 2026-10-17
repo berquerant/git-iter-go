@@ -285,6 +285,20 @@ func TestCommand_WorktreeCommands(t *testing.T) {
 		}, fake.Calls())
 	})
 
+	t.Run("BranchDelete", func(t *testing.T) {
+		t.Parallel()
+		fake := newFakeRunner()
+		c := git.New("git", fake)
+		require.NoError(t, c.BranchDelete(context.Background(), "/repos/r", "feat", false, io.Discard))
+		require.NoError(t, c.BranchDelete(context.Background(), "/repos/r", "feat2", true, io.Discard))
+		require.Error(t, c.BranchDelete(context.Background(), "/repos/r", "-invalid", false, io.Discard))
+		assert.Equal(t, [][]string{
+			{"git", "branch", "-d", "--", "feat"},
+			{"git", "branch", "-D", "--", "feat2"},
+		}, fake.Calls())
+	})
+
+
 	t.Run("WorktreePrune", func(t *testing.T) {
 		t.Parallel()
 		fake := newFakeRunner()

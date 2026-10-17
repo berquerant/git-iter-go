@@ -153,9 +153,10 @@ func TestWorktreeTools(t *testing.T) {
 
 		resRm, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
 			Name:      "git_iter_worktree_remove",
-			Arguments: map[string]any{"repo_dir": repo1, "branch": "feat-wt", "force": true},
+			Arguments: map[string]any{"repo_dir": repo1, "branch": "feat-wt", "force_delete_branch": true},
 		})
 		require.NoError(t, err)
 		require.False(t, resRm.IsError)
 	})
 }
+

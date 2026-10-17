@@ -87,18 +87,37 @@ func TestParseWorktreeRemoveArgs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		args    []string
-		force   bool
-		noForce bool
-		want    parse.WorktreeRemoveArgs
-		wantErr bool
+		name              string
+		args              []string
+		force             bool
+		noForce           bool
+		deleteBranch      bool
+		forceDeleteBranch bool
+		want              parse.WorktreeRemoveArgs
+		wantErr           bool
 	}{
 		{
 			name:  "valid remove with force",
 			args:  []string{"feat-1"},
 			force: true,
 			want:  parse.WorktreeRemoveArgs{Branch: "feat-1", Force: true},
+		},
+		{
+			name:         "valid remove with delete branch",
+			args:         []string{"feat-1"},
+			deleteBranch: true,
+			want:         parse.WorktreeRemoveArgs{Branch: "feat-1", DeleteBranch: true},
+		},
+		{
+			name:              "valid remove with force delete branch (-D)",
+			args:              []string{"feat-1"},
+			forceDeleteBranch: true,
+			want: parse.WorktreeRemoveArgs{
+				Branch:            "feat-1",
+				Force:             true,
+				DeleteBranch:      true,
+				ForceDeleteBranch: true,
+			},
 		},
 		{
 			name:    "missing branch",
@@ -110,7 +129,7 @@ func TestParseWorktreeRemoveArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := parse.ParseWorktreeRemoveArgs(tt.args, tt.force, tt.noForce)
+			got, err := parse.ParseWorktreeRemoveArgs(tt.args, tt.force, tt.noForce, tt.deleteBranch, tt.forceDeleteBranch)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -120,6 +139,7 @@ func TestParseWorktreeRemoveArgs(t *testing.T) {
 		})
 	}
 }
+
 
 func TestParseWorktreePruneArgs(t *testing.T) {
 	t.Parallel()

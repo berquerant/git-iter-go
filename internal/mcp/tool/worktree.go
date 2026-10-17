@@ -46,19 +46,22 @@ type WorktreeAddToolOutput struct {
 
 // WorktreeRemoveToolInput defines parameters for git_iter_worktree_remove tool.
 type WorktreeRemoveToolInput struct {
-	Branch       string `json:"branch" jsonschema:"branch name whose worktree should be removed"`
-	Force        bool   `json:"force,omitempty" jsonschema:"force removal even if worktree is dirty"`
-	NoForce      bool   `json:"no_force,omitempty" jsonschema:"do not force removal"`
-	RepoDir      string `json:"repo_dir,omitempty" jsonschema:"target main repository directory (defaults to current working directory)"`
-	ReposRoot    string `json:"repos_root,omitempty" jsonschema:"root directory of local repositories"`
-	WorktreeRoot string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
-	Timeout      string `json:"timeout,omitempty" jsonschema:"per-process execution timeout (e.g. 5s, 1m)"`
+	Branch            string `json:"branch" jsonschema:"branch name whose worktree should be removed"`
+	Force             bool   `json:"force,omitempty" jsonschema:"force removal even if worktree is dirty"`
+	NoForce           bool   `json:"no_force,omitempty" jsonschema:"do not force removal"`
+	DeleteBranch      bool   `json:"delete_branch,omitempty" jsonschema:"delete local branch after removing worktree (-d, or -D if force is true)"`
+	ForceDeleteBranch bool   `json:"force_delete_branch,omitempty" jsonschema:"force-delete local branch and force-remove worktree (-D)"`
+	RepoDir           string `json:"repo_dir,omitempty" jsonschema:"target main repository directory (defaults to current working directory)"`
+	ReposRoot         string `json:"repos_root,omitempty" jsonschema:"root directory of local repositories"`
+	WorktreeRoot      string `json:"worktree_root,omitempty" jsonschema:"root directory of git worktrees (defaults to <repos_root>/git-worktree)"`
+	Timeout           string `json:"timeout,omitempty" jsonschema:"per-process execution timeout (e.g. 5s, 1m)"`
 }
 
 // WorktreeRemoveToolOutput defines output for git_iter_worktree_remove tool.
 type WorktreeRemoveToolOutput struct {
 	Worktree output.RepoResult `json:"worktree" jsonschema:"removed worktree path"`
 }
+
 
 // WorktreePruneToolInput defines parameters for git_iter_worktree_prune tool.
 type WorktreePruneToolInput struct {
@@ -246,9 +249,19 @@ func registerWorktreeRemove(server *mcpsdk.Server, cfg *config.Config) {
 		_ *mcpsdk.CallToolRequest,
 		in WorktreeRemoveToolInput,
 	) (*mcpsdk.CallToolResult, WorktreeRemoveToolOutput, error) {
+		forceWT := in.Force || in.ForceDeleteBranch
 		wt, err := runWorktreeTargetOp(ctx, cfg, in.ReposRoot, in.WorktreeRoot, in.RepoDir, in.Branch, in.Timeout,
 			func(runCtx context.Context, g *git.Command, repoRoot, wtPath string) error {
-				return g.WorktreeRemove(runCtx, repoRoot, wtPath, in.Force, in.NoForce, io.Discard)
+				if err := g.WorktreeRemove(runCtx, repoRoot, wtPath, forceWT, in.NoForce, io.Discard); err != nil {
+					return err
+				}
+				if in.DeleteBranch || in.ForceDeleteBranch {
+					forceBranch := in.ForceDeleteBranch || in.Force
+					if err := g.BranchDelete(runCtx, repoRoot, in.Branch, forceBranch, io.Discard); err != nil {
+						return fmt.Errorf("branch delete: %w", err)
+					}
+				}
+				return nil
 			},
 		)
 		if err != nil {
@@ -257,6 +270,7 @@ func registerWorktreeRemove(server *mcpsdk.Server, cfg *config.Config) {
 		return nil, WorktreeRemoveToolOutput{Worktree: wt}, nil
 	})
 }
+
 
 func registerWorktreePrune(server *mcpsdk.Server, cfg *config.Config) {
 	mcpsdk.AddTool(server, &mcpsdk.Tool{

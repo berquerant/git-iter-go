@@ -318,7 +318,13 @@ func TestSubcommands_Help(t *testing.T) {
 			subcmd:       "mcp",
 			wantContains: []string{"--enable-do", "git_iter_do", "--enable-get", "git_iter_get"},
 		},
+		{
+			name:         "worktree remove help",
+			subcmd:       "worktree remove",
+			wantContains: []string{"-d", "--delete", "-D", "-f", "--force"},
+		},
 	}
+
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -328,9 +334,10 @@ func TestSubcommands_Help(t *testing.T) {
 			c := cmd.NewRootCmd()
 			c.SetOut(&stdout)
 			c.SetErr(&stderr)
-			c.SetArgs([]string{tt.subcmd, "--help"})
+			c.SetArgs(append(strings.Fields(tt.subcmd), "--help"))
 			err := c.ExecuteContext(context.Background())
 			require.NoError(t, err)
+
 
 			out := stdout.String()
 			for _, want := range tt.wantContains {
