@@ -69,7 +69,7 @@ This document provides guidance for AI agents working on this codebase.
 │   ├── executor/                      # Unstructured/streaming concurrent task execution
 │   │   └── executor.go                # Executor: concurrency control (semaphore), timeout, fail-fast
 │   ├── git/                           # Centralized git CLI command builder and operations
-│   │   └── git.go                     # git.Command: branch operations, default branch resolution, grep/pull builder
+│   │   └── git.go                     # git.Command: branch operations, default branch resolution, clone/grep/pull builder, URI2RelPath, IsRepo
 │   ├── markdown/                      # Pure Markdown document rendering and formatting
 │   │   ├── details.go                 # Details section formatting (Details, FormatDetails, FormatCodeDetails)
 │   │   ├── heading.go                 # Heading prefix and header generation (HeadingPrefix, WriteHeader)
@@ -89,7 +89,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │       └── executor.go            # MarkdownExecutor, LsFilesMarkdownExecutor
 │   ├── repo/                          # Repository discovery and path filtering
 │   │   ├── repo.go                    # Finder interface, StdinFinder, scanning helpers
-│   │   ├── fs.go                      # FilesystemFinder, CommandFinder, NewFinder
+│   │   ├── fs.go                      # FilesystemFinder, CommandFinder, NewFinder, IsGitRepo
 │   │   ├── filter.go                  # FilteredFinder, StatusFilterFinder, RemoteURLFilterFinder, DefaultBranchFilterFinder, BranchFilterFinder
 │   │   └── sort_limit.go              # SortedFinder, LimitedFinder
 │   └── runner/                        # Process execution abstraction

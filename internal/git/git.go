@@ -276,7 +276,8 @@ func extractHostAndPath(s string) (string, error) {
 		return u.Hostname() + "/" + strings.TrimPrefix(u.Path, "/"), nil
 	}
 
-	// Handle SCP-like syntax: [user@]host:path
+	// SCP-like syntax ([user@]host:path) lacks a "://" scheme and cannot be parsed by net/url.
+	// Require ":" to appear before any "/" so a colon inside a path segment is not mistaken for a host separator.
 	colon := strings.IndexByte(s, ':')
 	slash := strings.IndexByte(s, '/')
 	if colon > 0 && (slash < 0 || colon < slash) {
