@@ -54,15 +54,17 @@ func ResolveRepoRelPath(reposRoot, repoDir string) (string, error) {
 }
 
 func validateBranchName(branch string) error {
-	branch = strings.TrimSpace(branch)
-	if branch == "" {
+	if strings.TrimSpace(branch) == "" {
 		return fmt.Errorf("empty branch name")
 	}
-	if strings.HasPrefix(branch, "-") {
+	if strings.TrimSpace(branch) != branch || strings.HasPrefix(branch, "-") {
 		return fmt.Errorf("invalid branch name: %q", branch)
 	}
 	parts := strings.Split(filepath.ToSlash(branch), "/")
-	if slices.Contains(parts, "") || slices.Contains(parts, ".") || slices.Contains(parts, "..") {
+	if slices.ContainsFunc(parts, func(p string) bool {
+		t := strings.TrimSpace(p)
+		return t == "" || t != p || p == "." || p == ".."
+	}) {
 		return fmt.Errorf("invalid branch name: %q", branch)
 	}
 	return nil
