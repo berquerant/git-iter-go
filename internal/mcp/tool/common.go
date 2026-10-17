@@ -52,20 +52,54 @@ type finderParams struct {
 	Status    RepoStatusFilterInput
 }
 
-func applyStatusFilter(finder repo.Finder, cfg *config.Config, dirtyOnly, cleanOnly bool) repo.Finder {
+func applyStatusFilter(finder repo.Finder, cfg *config.Config, status RepoStatusFilterInput) (repo.Finder, error) {
+	dirtyOnly := status.DirtyOnly
+	cleanOnly := status.CleanOnly
+	if !dirtyOnly && !cleanOnly && cfg != nil {
+		dirtyOnly = cfg.DirtyOnly
+		cleanOnly = cfg.CleanOnly
+	}
+	if dirtyOnly && cleanOnly {
+		return nil, ErrConflictingFilterFlags
+	}
 	if !dirtyOnly && !cleanOnly {
-		return finder
+		return finder, nil
 	}
 	g := git.New(cfg.GitCommandOrFallback(), nil)
-	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly)
+	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly), nil
 }
 
-func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, defaultOnly, notDefaultOnly bool) repo.Finder {
+func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, d RepoDiscoveryInput) (repo.Finder, error) {
+	defaultOnly := d.DefaultBranchOnly
+	notDefaultOnly := d.NotDefaultBranchOnly
+	if !defaultOnly && !notDefaultOnly && cfg != nil {
+		defaultOnly = cfg.DefaultBranchOnly
+		notDefaultOnly = cfg.NotDefaultBranchOnly
+	}
+	if defaultOnly && notDefaultOnly {
+		return nil, ErrConflictingBranchFlags
+	}
 	if !defaultOnly && !notDefaultOnly {
-		return finder
+		return finder, nil
 	}
 	g := git.New(cfg.GitCommandOrFallback(), nil)
-	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly)
+	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly), nil
+}
+
+func applySortAndLimit(finder repo.Finder, cfg *config.Config, d RepoDiscoveryInput) repo.Finder {
+	sortAsc := d.Sort
+	sortDesc := d.SortReverse
+	if !sortAsc && !sortDesc && cfg != nil {
+		sortAsc = cfg.Sort
+		sortDesc = cfg.SortReverse
+	}
+	finder = repo.NewSortedFinder(finder, sortAsc, sortDesc)
+
+	limit := d.Limit
+	if limit <= 0 && cfg != nil {
+		limit = cfg.Limit
+	}
+	return repo.NewLimitedFinder(finder, limit)
 }
 
 func applyBranchFilter(finder repo.Finder, cfg *config.Config, branch string) (repo.Finder, error) {
@@ -118,58 +152,24 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 }
 
 func buildFinderFromBase(base repo.Finder, cfg *config.Config, p finderParams) (repo.Finder, error) {
-	dirtyOnly := p.Status.DirtyOnly
-	cleanOnly := p.Status.CleanOnly
-	if !dirtyOnly && !cleanOnly && cfg != nil {
-		dirtyOnly = cfg.DirtyOnly
-		cleanOnly = cfg.CleanOnly
-	}
-	if dirtyOnly && cleanOnly {
-		return nil, ErrConflictingFilterFlags
-	}
-
-	defaultBranchOnly := p.Discovery.DefaultBranchOnly
-	notDefaultBranchOnly := p.Discovery.NotDefaultBranchOnly
-	if !defaultBranchOnly && !notDefaultBranchOnly && cfg != nil {
-		defaultBranchOnly = cfg.DefaultBranchOnly
-		notDefaultBranchOnly = cfg.NotDefaultBranchOnly
-	}
-	if defaultBranchOnly && notDefaultBranchOnly {
-		return nil, ErrConflictingBranchFlags
-	}
-
 	finder, err := repo.NewFilteredFinder(base, p.Discovery.Patterns)
 	if err != nil {
 		return nil, fmt.Errorf("invalid pattern: %w", err)
 	}
-
-	sortAsc := p.Discovery.Sort
-	sortDesc := p.Discovery.SortReverse
-	if !sortAsc && !sortDesc && cfg != nil {
-		sortAsc = cfg.Sort
-		sortDesc = cfg.SortReverse
+	finder = applySortAndLimit(finder, cfg, p.Discovery)
+	finder, err = applyStatusFilter(finder, cfg, p.Status)
+	if err != nil {
+		return nil, err
 	}
-	finder = repo.NewSortedFinder(finder, sortAsc, sortDesc)
-
-	limit := p.Discovery.Limit
-	if limit <= 0 && cfg != nil {
-		limit = cfg.Limit
+	finder, err = applyDefaultBranchFilter(finder, cfg, p.Discovery)
+	if err != nil {
+		return nil, err
 	}
-	finder = repo.NewLimitedFinder(finder, limit)
-	finder = applyStatusFilter(finder, cfg, dirtyOnly, cleanOnly)
-	finder = applyDefaultBranchFilter(finder, cfg, defaultBranchOnly, notDefaultBranchOnly)
-
 	finder, err = applyBranchFilter(finder, cfg, p.Discovery.Branch)
 	if err != nil {
 		return nil, err
 	}
-
-	finder, err = applyRemoteURLFilter(finder, cfg, p.Discovery.RemoteURL)
-	if err != nil {
-		return nil, err
-	}
-
-	return finder, nil
+	return applyRemoteURLFilter(finder, cfg, p.Discovery.RemoteURL)
 }
 
 func resolveProcs(inMaxProcs int, cfg *config.Config) int {

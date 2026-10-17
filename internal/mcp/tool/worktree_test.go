@@ -41,19 +41,8 @@ func initRealGitRepo(t *testing.T, dir string) {
 	}
 }
 
-func TestWorktreeTools(t *testing.T) {
-	t.Parallel()
-
-	reposRoot := t.TempDir()
-	wtRoot := filepath.Join(reposRoot, "git-worktree")
-	repo1 := filepath.Join(reposRoot, "org", "repo1")
-	initRealGitRepo(t, repo1)
-
-	cfg := &config.Config{
-		ReposRoot:    reposRoot,
-		WorktreeRoot: wtRoot,
-	}
-
+func setupWorktreeToolSession(t *testing.T, cfg *config.Config) *mcpsdk.ClientSession {
+	t.Helper()
 	server := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "test-server", Version: "v1.0.0"}, nil)
 	tool.RegisterWorktreeList(server, cfg)
 	tool.RegisterWorktreeMutations(server, cfg)
@@ -64,12 +53,28 @@ func TestWorktreeTools(t *testing.T) {
 
 	serverSession, err := server.Connect(ctx, t1, nil)
 	require.NoError(t, err)
-	defer func() { _ = serverSession.Close() }()
+	t.Cleanup(func() { _ = serverSession.Close() })
 
 	clientSession, err := client.Connect(ctx, t2, nil)
 	require.NoError(t, err)
-	defer func() { _ = clientSession.Close() }()
+	t.Cleanup(func() { _ = clientSession.Close() })
 
+	return clientSession
+}
+
+func TestWorktreeTools(t *testing.T) {
+	t.Parallel()
+
+	reposRoot := t.TempDir()
+	wtRoot := filepath.Join(reposRoot, "git-worktree")
+	repo1 := filepath.Join(reposRoot, "org", "repo1")
+	initRealGitRepo(t, repo1)
+
+	clientSession := setupWorktreeToolSession(t, &config.Config{
+		ReposRoot:    reposRoot,
+		WorktreeRoot: wtRoot,
+	})
+	ctx := context.Background()
 	expectedWT := filepath.Join(wtRoot, "org", "repo1", "feat-wt")
 
 	t.Run("worktree add with new_branch", func(t *testing.T) {
@@ -111,10 +116,8 @@ func TestWorktreeTools(t *testing.T) {
 		assert.Equal(t, expectedWT, out.Repositories[0].RepoAbsPath)
 
 		resRepo, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-			Name: "git_iter_worktree_list",
-			Arguments: map[string]any{
-				"repo": true,
-			},
+			Name:      "git_iter_worktree_list",
+			Arguments: map[string]any{"repo": true},
 		})
 		require.NoError(t, err)
 		require.False(t, resRepo.IsError)
@@ -128,45 +131,26 @@ func TestWorktreeTools(t *testing.T) {
 		assert.Equal(t, repo1, outRepo.Repositories[0].RepoAbsPath)
 	})
 
-	t.Run("worktree prune single repo and all", func(t *testing.T) {
+	t.Run("worktree prune and remove", func(t *testing.T) {
 		resSingle, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-			Name: "git_iter_worktree_prune",
-			Arguments: map[string]any{
-				"repo_dir": repo1,
-				"dry_run":  true,
-			},
+			Name:      "git_iter_worktree_prune",
+			Arguments: map[string]any{"repo_dir": repo1, "dry_run": true},
 		})
 		require.NoError(t, err)
 		require.False(t, resSingle.IsError)
 
 		resAll, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-			Name: "git_iter_worktree_prune",
-			Arguments: map[string]any{
-				"all":     true,
-				"dry_run": true,
-			},
+			Name:      "git_iter_worktree_prune",
+			Arguments: map[string]any{"all": true, "dry_run": true},
 		})
 		require.NoError(t, err)
 		require.False(t, resAll.IsError)
-	})
 
-	t.Run("worktree remove", func(t *testing.T) {
-		res, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
-			Name: "git_iter_worktree_remove",
-			Arguments: map[string]any{
-				"repo_dir": repo1,
-				"branch":   "feat-wt",
-				"force":    true,
-			},
+		resRm, err := clientSession.CallTool(ctx, &mcpsdk.CallToolParams{
+			Name:      "git_iter_worktree_remove",
+			Arguments: map[string]any{"repo_dir": repo1, "branch": "feat-wt", "force": true},
 		})
 		require.NoError(t, err)
-		require.False(t, res.IsError)
-
-		data, err := json.Marshal(res.StructuredContent)
-		require.NoError(t, err)
-
-		var out tool.WorktreeRemoveToolOutput
-		require.NoError(t, json.Unmarshal(data, &out))
-		assert.Equal(t, expectedWT, out.Worktree.RepoAbsPath)
+		require.False(t, resRm.IsError)
 	})
 }

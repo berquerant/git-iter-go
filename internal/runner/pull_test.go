@@ -33,23 +33,86 @@ func (c *customFakeRunner) getCalls() [][]string {
 	return c.Calls()
 }
 
+type pullTestCase struct {
+	name          string
+	switchDefault bool
+	switchBack    bool
+	pullFlags     []string
+	currentBranch string
+	originHead    string // e.g. "origin/main", or "" if fails
+	initBranch    string // config init.defaultBranch, or ""
+	mainExists    bool
+	masterExists  bool
+	pullErr       error
+	wantCalls     [][]string
+	wantErr       bool
+}
+
+func runPullTestCases(t *testing.T, tests []pullTestCase) {
+	t.Helper()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := newCustomFakeRunner()
+			fake.on("branch", func(_ []string, stdout, _ io.Writer) error {
+				_, _ = fmt.Fprintln(stdout, tt.currentBranch)
+				return nil
+			})
+			fake.on("symbolic-ref", func(_ []string, stdout, _ io.Writer) error {
+				if tt.originHead != "" {
+					_, _ = fmt.Fprintln(stdout, tt.originHead)
+					return nil
+				}
+				return fmt.Errorf("no symbolic-ref")
+			})
+			fake.on("config", func(_ []string, stdout, _ io.Writer) error {
+				if tt.initBranch != "" {
+					_, _ = fmt.Fprintln(stdout, tt.initBranch)
+					return nil
+				}
+				return fmt.Errorf("no config")
+			})
+			fake.on("show-ref", func(cmd []string, _, _ io.Writer) error {
+				if slices.Contains(cmd, "refs/heads/main") && tt.mainExists {
+					return nil
+				}
+				if slices.Contains(cmd, "refs/heads/master") && tt.masterExists {
+					return nil
+				}
+				return fmt.Errorf("ref not found")
+			})
+			fake.on("pull", func(_ []string, stdout, _ io.Writer) error {
+				if tt.pullErr != nil {
+					return tt.pullErr
+				}
+				_, _ = fmt.Fprintln(stdout, "Already up to date.")
+				return nil
+			})
+
+			p := &runner.PullRunner{
+				SwitchDefault: tt.switchDefault,
+				SwitchBack:    tt.switchBack,
+				PullFlags:     tt.pullFlags,
+				Inner:         fake,
+			}
+
+			var stdout, stderr bytes.Buffer
+			err := p.Run(context.Background(), "/repo", nil, &stdout, &stderr)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCalls, fake.getCalls())
+		})
+	}
+}
+
 func TestPullRunner(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name          string
-		switchDefault bool
-		switchBack    bool
-		pullFlags     []string
-		currentBranch string
-		originHead    string // e.g. "origin/main", or "" if fails
-		initBranch    string // config init.defaultBranch, or ""
-		mainExists    bool
-		masterExists  bool
-		pullErr       error
-		wantCalls     [][]string
-		wantErr       bool
-	}{
+	runPullTestCases(t, []pullTestCase{
 		{
 			name:          "simple pull without flags",
 			switchDefault: false,
@@ -119,6 +182,13 @@ func TestPullRunner(t *testing.T) {
 				{"git", "pull"},
 			},
 		},
+	})
+}
+
+func TestPullRunner_DefaultBranchFallback(t *testing.T) {
+	t.Parallel()
+
+	runPullTestCases(t, []pullTestCase{
 		{
 			name:          "default branch fallback to init.defaultBranch",
 			switchDefault: true,
@@ -181,65 +251,7 @@ func TestPullRunner(t *testing.T) {
 			masterExists:  false,
 			wantErr:       true,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			fake := newCustomFakeRunner()
-			fake.on("branch", func(_ []string, stdout, _ io.Writer) error {
-				_, _ = fmt.Fprintln(stdout, tt.currentBranch)
-				return nil
-			})
-			fake.on("symbolic-ref", func(_ []string, stdout, _ io.Writer) error {
-				if tt.originHead != "" {
-					_, _ = fmt.Fprintln(stdout, tt.originHead)
-					return nil
-				}
-				return fmt.Errorf("no symbolic-ref")
-			})
-			fake.on("config", func(_ []string, stdout, _ io.Writer) error {
-				if tt.initBranch != "" {
-					_, _ = fmt.Fprintln(stdout, tt.initBranch)
-					return nil
-				}
-				return fmt.Errorf("no config")
-			})
-			fake.on("show-ref", func(cmd []string, _, _ io.Writer) error {
-				if slices.Contains(cmd, "refs/heads/main") && tt.mainExists {
-					return nil
-				}
-				if slices.Contains(cmd, "refs/heads/master") && tt.masterExists {
-					return nil
-				}
-				return fmt.Errorf("ref not found")
-			})
-			fake.on("pull", func(_ []string, stdout, _ io.Writer) error {
-				if tt.pullErr != nil {
-					return tt.pullErr
-				}
-				_, _ = fmt.Fprintln(stdout, "Already up to date.")
-				return nil
-			})
-
-			p := &runner.PullRunner{
-				SwitchDefault: tt.switchDefault,
-				SwitchBack:    tt.switchBack,
-				PullFlags:     tt.pullFlags,
-				Inner:         fake,
-			}
-
-			var stdout, stderr bytes.Buffer
-			err := p.Run(context.Background(), "/repo", nil, &stdout, &stderr)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantCalls, fake.getCalls())
-		})
-	}
+	})
 }
 
 func TestPullRunner_CustomGitBin(t *testing.T) {

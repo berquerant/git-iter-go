@@ -72,6 +72,41 @@ func TestResolveWorktreePath(t *testing.T) {
 	repoDir := filepath.Join(reposRoot, "github.com", "org", "repo")
 	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755))
 
+	tests := []struct {
+		name   string
+		branch string
+		want   string
+	}{
+		{
+			name:   "simple branch name",
+			branch: "feat-1",
+			want:   filepath.Join(wtRoot, "github.com", "org", "repo", "feat-1"),
+		},
+		{
+			name:   "nested branch name with slash",
+			branch: "feat/sub",
+			want:   filepath.Join(wtRoot, "github.com", "org", "repo", "feat", "sub"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := git.ResolveWorktreePath(reposRoot, wtRoot, repoDir, tt.branch)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveWorktreePath_Error(t *testing.T) {
+	t.Parallel()
+
+	reposRoot := t.TempDir()
+	wtRoot := filepath.Join(reposRoot, "git-worktree")
+	repoDir := filepath.Join(reposRoot, "github.com", "org", "repo")
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755))
+
 	outsideRepo := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(outsideRepo, ".git"), 0o755))
 
@@ -81,109 +116,23 @@ func TestResolveWorktreePath(t *testing.T) {
 		worktreeRoot string
 		repoDir      string
 		branch       string
-		want         string
-		wantErr      bool
 	}{
-		{
-			name:         "simple branch name",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat-1",
-			want:         filepath.Join(wtRoot, "github.com", "org", "repo", "feat-1"),
-		},
-		{
-			name:         "nested branch name with slash",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat/sub",
-			want:         filepath.Join(wtRoot, "github.com", "org", "repo", "feat", "sub"),
-		},
-		{
-			name:         "empty branch",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "",
-			wantErr:      true,
-		},
-		{
-			name:         "leading dash branch injection",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "--detach",
-			wantErr:      true,
-		},
-		{
-			name:         "path traversal branch",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat/../evil",
-			wantErr:      true,
-		},
-		{
-			name:         "branch with leading or trailing whitespace",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       " feat-1 ",
-			wantErr:      true,
-		},
-		{
-			name:         "branch with whitespace-only segment",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat/ /sub",
-			wantErr:      true,
-		},
-		{
-			name:         "branch with whitespace-padded segment",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat/ sub/leaf",
-			wantErr:      true,
-		},
-		{
-			name:         "empty worktreeRoot",
-			reposRoot:    reposRoot,
-			worktreeRoot: "",
-			repoDir:      repoDir,
-			branch:       "feat-1",
-			wantErr:      true,
-		},
-		{
-			name:         "empty reposRoot",
-			reposRoot:    "",
-			worktreeRoot: wtRoot,
-			repoDir:      repoDir,
-			branch:       "feat-1",
-			wantErr:      true,
-		},
-		{
-			name:         "repo outside reposRoot",
-			reposRoot:    reposRoot,
-			worktreeRoot: wtRoot,
-			repoDir:      outsideRepo,
-			branch:       "feat-1",
-			wantErr:      true,
-		},
+		{name: "empty branch", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: ""},
+		{name: "leading dash branch injection", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: "--detach"},
+		{name: "path traversal branch", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: "feat/../evil"},
+		{name: "branch with leading or trailing whitespace", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: " feat-1 "},
+		{name: "branch with whitespace-only segment", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: "feat/ /sub"},
+		{name: "branch with whitespace-padded segment", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: repoDir, branch: "feat/ sub/leaf"},
+		{name: "empty worktreeRoot", reposRoot: reposRoot, worktreeRoot: "", repoDir: repoDir, branch: "feat-1"},
+		{name: "empty reposRoot", reposRoot: "", worktreeRoot: wtRoot, repoDir: repoDir, branch: "feat-1"},
+		{name: "repo outside reposRoot", reposRoot: reposRoot, worktreeRoot: wtRoot, repoDir: outsideRepo, branch: "feat-1"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := git.ResolveWorktreePath(tt.reposRoot, tt.worktreeRoot, tt.repoDir, tt.branch)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			_, err := git.ResolveWorktreePath(tt.reposRoot, tt.worktreeRoot, tt.repoDir, tt.branch)
+			require.Error(t, err)
 		})
 	}
 }
