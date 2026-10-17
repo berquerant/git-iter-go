@@ -114,7 +114,10 @@ func ResolveMainRepoFromWorktree(reposRoot, worktreeRoot, wtPath string) (string
 		return "", "", fmt.Errorf("worktree %q is not under worktree-root %q", absWT, absWorktreeRoot)
 	}
 
-	// Walk up from filepath.Dir(filepath.Join(absReposRoot, relWT)) to find the corresponding main repository.
+	// Because branch names may contain slashes (e.g. "feat/sub"), the boundary between
+	// <DIR> and <BRANCH> in <worktree-root>/<DIR>/<BRANCH> is not known from the path alone.
+	// Walk up from filepath.Dir(filepath.Join(absReposRoot, relWT)) to find the corresponding
+	// main repository under absReposRoot, which uniquely determines both <DIR> and <BRANCH>.
 	cand := filepath.Dir(filepath.Join(absReposRoot, relWT))
 	for cand != absReposRoot && strings.HasPrefix(cand, absReposRoot+string(filepath.Separator)) {
 		if IsRepo(cand) {

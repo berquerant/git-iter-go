@@ -173,7 +173,6 @@ func NewWorktreeRemoveCmd() *cobra.Command {
 					},
 				},
 			},
-			OutputModes: DefaultOutputModeDoc(),
 			Examples: []Example{
 				{
 					Desc:    "Remove the worktree for branch feat-1",
