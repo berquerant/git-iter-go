@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -418,5 +420,78 @@ func TestResolveCloneDir(t *testing.T) {
 		})
 	}
 }
+
+func TestCommand_EnsureCloned(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, root string, fake *fakeRunner)
+		reposRoot func(root string) string
+		uri       string
+		wantCalls func(targetDir string) [][]string
+		wantErr   bool
+	}{
+		{
+			name: "skips clone when repository already exists",
+			setup: func(t *testing.T, root string, _ *fakeRunner) {
+				require.NoError(t, os.MkdirAll(filepath.Join(root, "github.com", "org", "repo", ".git"), 0o755))
+			},
+			reposRoot: func(root string) string { return root },
+			uri:       "https://github.com/org/repo.git",
+			wantCalls: func(_ string) [][]string { return nil },
+		},
+		{
+			name:  "clones repository when not present",
+			setup: func(_ *testing.T, _ string, _ *fakeRunner) {},
+			reposRoot: func(root string) string {
+				return root
+			},
+			uri: "https://github.com/org/repo.git",
+			wantCalls: func(targetDir string) [][]string {
+				return [][]string{{"git", "clone", "--", "https://github.com/org/repo.git", targetDir}}
+			},
+		},
+		{
+			name: "returns error when clone fails",
+			setup: func(_ *testing.T, _ string, fake *fakeRunner) {
+				fake.on("clone", func(_ []string, _, _ io.Writer) error {
+					return fmt.Errorf("clone failed")
+				})
+			},
+			reposRoot: func(root string) string { return root },
+			uri:       "https://github.com/org/repo.git",
+			wantErr:   true,
+		},
+		{
+			name:      "returns error when reposRoot is empty",
+			setup:     func(_ *testing.T, _ string, _ *fakeRunner) {},
+			reposRoot: func(_ string) string { return "" },
+			uri:       "https://github.com/org/repo.git",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			fake := newFakeRunner()
+			tt.setup(t, root, fake)
+
+			c := git.New("git", fake)
+			got, err := c.EnsureCloned(context.Background(), tt.reposRoot(root), tt.uri, io.Discard)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			expectedDir := filepath.Join(root, "github.com", "org", "repo")
+			assert.Equal(t, expectedDir, got)
+			assert.Equal(t, tt.wantCalls(expectedDir), fake.Calls())
+		})
+	}
+}
+
 
 

@@ -16,15 +16,7 @@ func NewGetCmd() *cobra.Command {
 		Long: LongDoc{
 			Header: `Without URI, print the absolute path of every discovered repository under --repos-root.
 With URI, check whether the corresponding local repository directory exists under --repos-root (containing .git); if not, clone URI into that directory, and print its absolute path.`,
-			OutputModes: OutputModeDoc{
-				Text: "Print one absolute path per line (default).",
-				JSON: "Emit one JSON object per repository (JSON Lines):",
-				JSONRows: []Item{
-					{Term: JSONRowRepoAbsPath, Desc: JSONRowRepoAbsPathDesc},
-					{Term: JSONRowRepoRelPath, Desc: JSONRowRepoRelPathDesc},
-				},
-				Markdown: "Emit a formatted Markdown document listing repositories (or md).",
-			},
+			OutputModes: RepoListOutputModeDoc(),
 			Examples: []Example{
 				{
 					Desc:    "List all repositories under /repos",

@@ -3,15 +3,15 @@ package repo
 import (
 	"context"
 	"io/fs"
-	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/berquerant/git-iter-go/internal/git"
 )
 
 // IsGitRepo reports whether dir contains a ".git" entry (file or directory).
 func IsGitRepo(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	return err == nil
+	return git.IsRepo(dir)
 }
 
 // FilesystemFinder walks Root recursively and returns every directory that

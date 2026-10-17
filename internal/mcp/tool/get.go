@@ -2,13 +2,11 @@ package tool
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/berquerant/git-iter-go/internal/config"
 	"github.com/berquerant/git-iter-go/internal/git"
 	"github.com/berquerant/git-iter-go/internal/output"
-	"github.com/berquerant/git-iter-go/internal/repo"
 	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -47,33 +45,27 @@ func RegisterGet(server *mcpsdk.Server, cfg *config.Config) {
 			root = cfg.ReposRoot
 		}
 
-		targetDir, err := git.ResolveCloneDir(root, in.URI)
+		timeout, err := resolveTimeout(in.Timeout, cfg)
 		if err != nil {
 			return nil, GetToolOutput{}, err
 		}
 
-		if !repo.IsGitRepo(targetDir) {
-			timeout, err := resolveTimeout(in.Timeout, cfg)
-			if err != nil {
-				return nil, GetToolOutput{}, err
-			}
-
-			gitCmd := ""
-			if cfg != nil {
-				gitCmd = cfg.GitCommandOrFallback()
-			}
-			g := git.New(gitCmd, nil)
-
-			runCtx := ctx
+		runCtx := ctx
+		if timeout > 0 {
 			var cancel context.CancelFunc
-			if timeout > 0 {
-				runCtx, cancel = context.WithTimeout(ctx, timeout)
-				defer cancel()
-			}
+			runCtx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		}
 
-			if err := g.Clone(runCtx, in.URI, targetDir, io.Discard); err != nil {
-				return nil, GetToolOutput{}, fmt.Errorf("clone %s: %w", in.URI, err)
-			}
+		gitCmd := ""
+		if cfg != nil {
+			gitCmd = cfg.GitCommandOrFallback()
+		}
+		g := git.New(gitCmd, nil)
+
+		targetDir, err := g.EnsureCloned(runCtx, root, in.URI, io.Discard)
+		if err != nil {
+			return nil, GetToolOutput{}, err
 		}
 
 		return nil, GetToolOutput{
@@ -86,4 +78,5 @@ func RegisterGet(server *mcpsdk.Server, cfg *config.Config) {
 		}, nil
 	})
 }
+
 

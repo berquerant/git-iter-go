@@ -7,11 +7,18 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 )
+
+// IsRepo reports whether dir contains a ".git" entry (file or directory).
+func IsRepo(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}
 
 // Runner executes a command in dir, writing its stdout/stderr to the provided writers.
 type Runner interface {
@@ -187,6 +194,21 @@ func (c *Command) CloneCmd(uri, dir string) []string {
 // Clone clones uri into targetDir, routing command output to stderr.
 func (c *Command) Clone(ctx context.Context, uri, targetDir string, stderr io.Writer) error {
 	return c.Run(ctx, "", c.CloneCmd(uri, targetDir)[1:], stderr, stderr)
+}
+
+// EnsureCloned resolves the local directory for uri under reposRoot and clones
+// the repository if it does not already exist (as determined by IsRepo).
+func (c *Command) EnsureCloned(ctx context.Context, reposRoot, uri string, stderr io.Writer) (string, error) {
+	targetDir, err := ResolveCloneDir(reposRoot, uri)
+	if err != nil {
+		return "", err
+	}
+	if !IsRepo(targetDir) {
+		if err := c.Clone(ctx, uri, targetDir, stderr); err != nil {
+			return "", fmt.Errorf("clone %s: %w", uri, err)
+		}
+	}
+	return targetDir, nil
 }
 
 // ResolveCloneDir resolves the absolute local directory path under reposRoot for uri.

@@ -66,9 +66,8 @@ func RunList(
 // RunGet executes the "get" subcommand logic.
 // If a.URI is empty, it lists discovered repositories via finder.
 // If a.URI is non-empty, it checks whether the corresponding local repository
-// exists under cfg.ReposRoot (via repo.IsGitRepo); if not, it clones a.URI into
-// that directory using r (routing clone output to stderr) and writes the repository
-// path to stdout.
+// exists under cfg.ReposRoot; if not, it clones a.URI into that directory using r
+// (routing clone output to stderr) and writes the repository path to stdout.
 func RunGet(
 	ctx context.Context,
 	cfg *config.Config,
@@ -86,24 +85,20 @@ func RunGet(
 		return writeRepoPaths(cfg, outMode, paths, stdout)
 	}
 
-	targetDir, err := git.ResolveCloneDir(cfg.ReposRoot, a.URI)
+	runCtx := ctx
+	if cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+		defer cancel()
+	}
+
+	g := git.New(cfg.GitCommandOrFallback(), r)
+	targetDir, err := g.EnsureCloned(runCtx, cfg.ReposRoot, a.URI, stderr)
 	if err != nil {
 		return fmt.Errorf("get: %w", err)
 	}
 
-	if !repo.IsGitRepo(targetDir) {
-		g := git.New(cfg.GitCommandOrFallback(), r)
-		runCtx := ctx
-		var cancel context.CancelFunc
-		if cfg.Timeout > 0 {
-			runCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
-			defer cancel()
-		}
-		if err := g.Clone(runCtx, a.URI, targetDir, stderr); err != nil {
-			return fmt.Errorf("get: clone %s: %w", a.URI, err)
-		}
-	}
-
 	return writeRepoPaths(cfg, outMode, []string{targetDir}, stdout)
 }
+
 

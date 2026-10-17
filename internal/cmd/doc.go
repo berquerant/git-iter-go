@@ -114,6 +114,20 @@ func DefaultOutputModeDoc() OutputModeDoc {
 	}
 }
 
+// RepoListOutputModeDoc returns the standard output mode documentation for repository-listing commands.
+func RepoListOutputModeDoc() OutputModeDoc {
+	return OutputModeDoc{
+		Text: "Print one absolute path per line (default).",
+		JSON: DefaultJSONDesc,
+		JSONRows: []Item{
+			{Term: JSONRowRepoAbsPath, Desc: JSONRowRepoAbsPathDesc},
+			{Term: JSONRowRepoRelPath, Desc: JSONRowRepoRelPathDesc},
+		},
+		Markdown: "Emit a formatted Markdown document listing repositories (or md).",
+	}
+}
+
+
 // LongDoc defines the structured sections of a subcommand's Long help text.
 // Build() concatenates these sections in order with standardized formatting.
 type LongDoc struct {
