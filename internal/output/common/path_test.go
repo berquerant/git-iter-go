@@ -2,6 +2,7 @@ package common_test
 
 import (
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/berquerant/git-iter-go/internal/output/common"
@@ -37,6 +38,9 @@ func TestExitCodeFrom(t *testing.T) {
 
 func TestRelPath(t *testing.T) {
 	t.Parallel()
+	absCwd, err := filepath.Abs(".")
+	require.NoError(t, err)
+
 	tests := []struct {
 		name        string
 		reposRoot   string
@@ -67,6 +71,12 @@ func TestRelPath(t *testing.T) {
 			repoAbsPath: "/repos/r",
 			want:        ".",
 		},
+		{
+			name:        "relative reposRoot with absolute repoAbsPath",
+			reposRoot:   ".",
+			repoAbsPath: filepath.Join(absCwd, "org", "repo"),
+			want:        filepath.Join("org", "repo"),
+		},
 	}
 
 	for _, tt := range tests {
@@ -76,3 +86,4 @@ func TestRelPath(t *testing.T) {
 		})
 	}
 }
+

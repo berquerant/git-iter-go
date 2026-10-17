@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/berquerant/git-iter-go/internal/config"
 	"github.com/berquerant/git-iter-go/internal/git"
@@ -77,14 +76,14 @@ func RegisterGet(server *mcpsdk.Server, cfg *config.Config) {
 			}
 		}
 
-		absRoot, _ := filepath.Abs(root)
 		return nil, GetToolOutput{
 			Repositories: []output.RepoResult{
 				{
 					RepoAbsPath: targetDir,
-					RepoRelPath: output.RelPath(absRoot, targetDir),
+					RepoRelPath: output.RelPath(root, targetDir),
 				},
 			},
 		}, nil
 	})
 }
+

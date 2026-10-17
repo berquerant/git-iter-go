@@ -197,5 +197,34 @@ func TestRunGet(t *testing.T) {
 		)
 		require.Error(t, err)
 	})
+
+	t.Run("json mode with relative repos-root computes relative repo_rel_path", func(t *testing.T) {
+		t.Parallel()
+		absCwd, err := filepath.Abs(".")
+		require.NoError(t, err)
+
+		cfg := &config.Config{ReposRoot: "."}
+		finder := &testutil.FakeFinder{}
+		r := &testutil.FakeRunner{}
+		var stdout, stderr bytes.Buffer
+
+		err = runner.RunGet(
+			context.Background(),
+			cfg,
+			"json",
+			parse.GetArgs{URI: "https://github.com/berquerant/git-iter-go.git"},
+			finder,
+			r,
+			&stdout,
+			&stderr,
+		)
+		require.NoError(t, err)
+
+		var res output.RepoResult
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &res))
+		assert.Equal(t, filepath.Join(absCwd, "github.com", "berquerant", "git-iter-go"), res.RepoAbsPath)
+		assert.Equal(t, filepath.Join("github.com", "berquerant", "git-iter-go"), res.RepoRelPath)
+	})
 }
+
 
