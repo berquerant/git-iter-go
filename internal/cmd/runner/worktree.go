@@ -55,6 +55,26 @@ func RunWorktreeList(
 	return writeRepoPathsWithRoot(wtRoot, cfg.MarkdownHeaderLevel, outMode, wtPaths, stdout)
 }
 
+func resolveRepoWorktree(cfg *config.Config, repoDir, branch string) (string, string, string, error) {
+	wtRoot := cfg.WorktreeRootOrFallback()
+	repoRoot, err := git.FindRepoRoot(repoDir)
+	if err != nil {
+		return "", "", "", err
+	}
+	wtPath, err := git.ResolveWorktreePath(cfg.ReposRoot, wtRoot, repoRoot, branch)
+	if err != nil {
+		return "", "", "", err
+	}
+	return wtRoot, repoRoot, wtPath, nil
+}
+
+func withConfigTimeout(ctx context.Context, cfg *config.Config) (context.Context, context.CancelFunc) {
+	if cfg != nil && cfg.Timeout > 0 {
+		return context.WithTimeout(ctx, cfg.Timeout)
+	}
+	return ctx, func() {}
+}
+
 // RunWorktreeAdd executes the "worktree add" subcommand logic for the repository at repoDir.
 func RunWorktreeAdd(
 	ctx context.Context,
@@ -65,22 +85,13 @@ func RunWorktreeAdd(
 	r iterRunner.Runner,
 	stdout, stderr io.Writer,
 ) error {
-	wtRoot := cfg.WorktreeRootOrFallback()
-	repoRoot, err := git.FindRepoRoot(repoDir)
-	if err != nil {
-		return fmt.Errorf("worktree add: %w", err)
-	}
-	wtPath, err := git.ResolveWorktreePath(cfg.ReposRoot, wtRoot, repoRoot, a.TargetBranch())
+	wtRoot, repoRoot, wtPath, err := resolveRepoWorktree(cfg, repoDir, a.TargetBranch())
 	if err != nil {
 		return fmt.Errorf("worktree add: %w", err)
 	}
 
-	runCtx := ctx
-	if cfg.Timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
-		defer cancel()
-	}
+	runCtx, cancel := withConfigTimeout(ctx, cfg)
+	defer cancel()
 
 	g := git.New(cfg.GitCommandOrFallback(), r)
 	if err := g.WorktreeAdd(runCtx, repoRoot, wtPath, a.Branch, a.NewBranch, stderr); err != nil {
@@ -99,22 +110,13 @@ func RunWorktreeRemove(
 	r iterRunner.Runner,
 	stderr io.Writer,
 ) error {
-	wtRoot := cfg.WorktreeRootOrFallback()
-	repoRoot, err := git.FindRepoRoot(repoDir)
-	if err != nil {
-		return fmt.Errorf("worktree remove: %w", err)
-	}
-	wtPath, err := git.ResolveWorktreePath(cfg.ReposRoot, wtRoot, repoRoot, a.Branch)
+	_, repoRoot, wtPath, err := resolveRepoWorktree(cfg, repoDir, a.Branch)
 	if err != nil {
 		return fmt.Errorf("worktree remove: %w", err)
 	}
 
-	runCtx := ctx
-	if cfg.Timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, cfg.Timeout)
-		defer cancel()
-	}
+	runCtx, cancel := withConfigTimeout(ctx, cfg)
+	defer cancel()
 
 	g := git.New(cfg.GitCommandOrFallback(), r)
 	if err := g.WorktreeRemove(runCtx, repoRoot, wtPath, a.Force, a.NoForce, stderr); err != nil {
