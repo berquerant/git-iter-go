@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/berquerant/git-iter-go/internal/config"
 	"github.com/berquerant/git-iter-go/internal/git"
@@ -76,21 +75,21 @@ type WorktreePruneToolOutput struct {
 }
 
 func resolveRoots(inReposRoot, inWorktreeRoot string, cfg *config.Config) (string, string, error) {
-	reposRoot := inReposRoot
-	if reposRoot == "" && cfg != nil {
-		reposRoot = cfg.ReposRoot
+	effective := &config.Config{}
+	if cfg != nil {
+		*effective = *cfg
 	}
-	wtRoot := inWorktreeRoot
-	if wtRoot == "" && cfg != nil {
-		wtRoot = cfg.WorktreeRoot
+	if inReposRoot != "" {
+		effective.ReposRoot = inReposRoot
 	}
-	if wtRoot == "" && reposRoot != "" {
-		wtRoot = filepath.Join(reposRoot, "git-worktree")
+	if inWorktreeRoot != "" {
+		effective.WorktreeRoot = inWorktreeRoot
 	}
+	wtRoot := effective.WorktreeRootOrFallback()
 	if wtRoot == "" {
 		return "", "", fmt.Errorf("worktree_root or repos_root must be specified")
 	}
-	return reposRoot, wtRoot, nil
+	return effective.ReposRoot, wtRoot, nil
 }
 
 func resolveRepoDir(inRepoDir string) (string, error) {

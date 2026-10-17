@@ -276,7 +276,7 @@ that have worktrees under --worktree-root (filtered by optional REPO_REGEX).`,
 			}
 
 			pruneRunner := &runner.WorktreePruneRunner{
-				GitCommand:   cfg.GitCommand,
+				GitCommand:   cfg.GitCommandOrFallback(),
 				ReposRoot:    cfg.ReposRoot,
 				WorktreeRoot: cfg.WorktreeRootOrFallback(),
 				DryRun:       pruneArgs.DryRun,
