@@ -19,6 +19,30 @@ type ListToolsOutput struct {
 	Repositories []output.RepoResult `json:"repositories" jsonschema:"discovered repositories"`
 }
 
+func listRepositories(ctx context.Context, cfg *config.Config, discovery RepoDiscoveryInput) ([]output.RepoResult, error) {
+	finder, root, err := buildFinder(cfg, finderParams{
+		Discovery: discovery,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	paths, err := finder.Find(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("find repositories: %w", err)
+	}
+
+	repos := make([]output.RepoResult, len(paths))
+	for i, p := range paths {
+		repos[i] = output.RepoResult{
+			RepoAbsPath: p,
+			RepoRelPath: output.RelPath(root, p),
+		}
+	}
+
+	return repos, nil
+}
+
 // RegisterList registers the git_iter_list tool on the given MCP server.
 func RegisterList(server *mcpsdk.Server, cfg *config.Config) {
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
@@ -29,26 +53,11 @@ func RegisterList(server *mcpsdk.Server, cfg *config.Config) {
 		_ *mcpsdk.CallToolRequest,
 		in ListToolsInput,
 	) (*mcpsdk.CallToolResult, ListToolsOutput, error) {
-		finder, root, err := buildFinder(cfg, finderParams{
-			Discovery: in.RepoDiscoveryInput,
-		})
+		repos, err := listRepositories(ctx, cfg, in.RepoDiscoveryInput)
 		if err != nil {
 			return nil, ListToolsOutput{}, err
 		}
-
-		paths, err := finder.Find(ctx)
-		if err != nil {
-			return nil, ListToolsOutput{}, fmt.Errorf("find repositories: %w", err)
-		}
-
-		repos := make([]output.RepoResult, len(paths))
-		for i, p := range paths {
-			repos[i] = output.RepoResult{
-				RepoAbsPath: p,
-				RepoRelPath: output.RelPath(root, p),
-			}
-		}
-
 		return nil, ListToolsOutput{Repositories: repos}, nil
 	})
 }
+

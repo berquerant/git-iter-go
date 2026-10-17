@@ -15,4 +15,5 @@ var (
 	RunLsFiles = cmdRunner.RunLsFiles
 	RunStatus  = cmdRunner.RunStatus
 	RunDiff    = cmdRunner.RunDiff
+	RunGet     = cmdRunner.RunGet
 )

@@ -20,15 +20,7 @@ func NewListCmd() *cobra.Command {
 					Body: `This subcommand is also available as "ls".`,
 				},
 			},
-			OutputModes: OutputModeDoc{
-				Text: "Print one absolute path per line (default).",
-				JSON: "Emit one JSON object per repository (JSON Lines):",
-				JSONRows: []Item{
-					{Term: JSONRowRepoAbsPath, Desc: JSONRowRepoAbsPathDesc},
-					{Term: JSONRowRepoRelPath, Desc: JSONRowRepoRelPathDesc},
-				},
-				Markdown: "Emit a formatted Markdown document listing repositories (or md).",
-			},
+			OutputModes: RepoListOutputModeDoc(),
 			Examples: []Example{
 				{
 					Desc:    "List all repositories under /repos",

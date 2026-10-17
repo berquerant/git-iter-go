@@ -67,3 +67,32 @@ func TestParseReadArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestParseGetArgs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		args    []string
+		wantURI string
+	}{
+		{
+			name:    "empty args",
+			args:    nil,
+			wantURI: "",
+		},
+		{
+			name:    "with URI",
+			args:    []string{"https://github.com/berquerant/git-iter-go.git"},
+			wantURI: "https://github.com/berquerant/git-iter-go.git",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := parse.ParseGetArgs(tt.args)
+			assert.Equal(t, tt.wantURI, got.URI)
+		})
+	}
+}
+

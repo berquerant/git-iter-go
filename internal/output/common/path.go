@@ -26,9 +26,15 @@ func RelPath(reposRoot, repoAbsPath string) string {
 	if reposRoot == "" {
 		return repoAbsPath
 	}
+	if !filepath.IsAbs(reposRoot) && filepath.IsAbs(repoAbsPath) {
+		if absRoot, err := filepath.Abs(reposRoot); err == nil {
+			reposRoot = absRoot
+		}
+	}
 	rel, err := filepath.Rel(reposRoot, repoAbsPath)
 	if err != nil {
 		return repoAbsPath
 	}
 	return rel
 }
+

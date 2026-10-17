@@ -75,6 +75,7 @@ type (
 	LsFilesArgs = parse.LsFilesArgs
 	StatusArgs  = parse.StatusArgs
 	DiffArgs    = parse.DiffArgs
+	GetArgs     = parse.GetArgs
 )
 
 var (
@@ -94,4 +95,5 @@ var (
 	ParseStatusArgsWithDash  = parse.ParseStatusArgsWithDash
 	ParseDiffArgs            = parse.ParseDiffArgs
 	ParseDiffArgsWithDash    = parse.ParseDiffArgsWithDash
+	ParseGetArgs             = parse.ParseGetArgs
 )

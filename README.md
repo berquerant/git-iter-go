@@ -33,6 +33,7 @@ It supports parallel execution controls, per-process timeouts, fail-fast behavio
   - `pull`: Pull with optional default branch checkout and switch-back (`-s, --switch-default`, `-b, --switch-back`).
   - `fetch`: Fetch with optional default branch restriction (`-s, --default`).
   - `list` (`ls`): List matching repository paths.
+  - `get`: Resolve or clone a repository by URI under `--repos-root`, or list repository paths when URI is omitted.
   - `read`: Execute commands for repository paths fed via stdin.
   - `mcp`: Model Context Protocol server over stdio for LLM integration.
 
@@ -146,11 +147,14 @@ git-iter -r ~/src status
 git-iter -r ~/src -o json status
 ```
 
-### 5. Repository Discovery & Pipelining (`list` & `read`)
+### 5. Repository Discovery, Cloning & Pipelining (`list`, `get` & `read`)
 
 ```bash
 # List all discovered repositories
 git-iter -r ~/src list
+
+# Resolve or clone a repository by URI under ~/src and print its absolute path
+git-iter -r ~/src get https://github.com/berquerant/git-iter-go.git
 
 # Narrow down with patterns and pipe into read
 git-iter -r ~/src list "service-.*" | git-iter read git pull
@@ -186,12 +190,13 @@ git-iter -r ~/src mcp
 - `git_iter_diff`: Run `git diff` in matching repositories.
 - `git_iter_grep`: Run `git grep` across matching repositories.
 - `git_iter_ls_files`: Run `git ls-files` across matching repositories.
+- `git_iter_get`: Resolve or clone a repository by URI under the root directory, or list discovered repositories (**disabled by default for security**, opt-in via `--enable-get`).
 - `git_iter_do`: Execute arbitrary commands in matching repositories (**disabled by default for security**, opt-in via `--enable-do`).
 
-To enable arbitrary command execution for the MCP server:
+To enable optional tools for the MCP server:
 
 ```bash
-git-iter -r ~/src mcp --enable-do
+git-iter -r ~/src mcp --enable-do --enable-get
 ```
 
 ---

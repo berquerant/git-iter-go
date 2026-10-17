@@ -20,3 +20,17 @@ type ReadArgs struct {
 func ParseReadArgs(args []string) ReadArgs {
 	return ReadArgs{Command: args}
 }
+
+// GetArgs is the parsed argument set for the "get" subcommand.
+type GetArgs struct {
+	URI string // repository URI to clone/resolve; empty means list all repositories
+}
+
+// ParseGetArgs parses raw cobra args into GetArgs.
+func ParseGetArgs(args []string) GetArgs {
+	if len(args) > 0 {
+		return GetArgs{URI: args[0]}
+	}
+	return GetArgs{}
+}
+

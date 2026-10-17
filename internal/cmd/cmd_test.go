@@ -148,6 +148,48 @@ func TestListCmd_Output(t *testing.T) {
 	}
 }
 
+func TestGetCmd_Output(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	repoA := testutil.MakeGitRepo(t, root, "repo-a")
+	repoB := testutil.MakeGitRepo(t, root, "repo-b")
+	existingURI := testutil.MakeGitRepo(t, root, filepath.Join("github.com", "berquerant", "git-iter-go"))
+
+	tests := []struct {
+		name      string
+		args      []string
+		wantLines []string
+	}{
+		{
+			name:      "get without URI lists all repositories",
+			args:      []string{"--repos-root", root, "get", "--sort"},
+			wantLines: []string{existingURI, repoA, repoB},
+		},
+		{
+			name:      "get with existing URI returns repository path",
+			args:      []string{"--repos-root", root, "get", "https://github.com/berquerant/git-iter-go.git"},
+			wantLines: []string{existingURI},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout bytes.Buffer
+			c := cmd.NewRootCmd()
+			c.SetOut(&stdout)
+			c.SetErr(&bytes.Buffer{})
+			c.SetArgs(tt.args)
+			err := c.ExecuteContext(context.Background())
+			require.NoError(t, err)
+
+			got := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+			assert.Equal(t, tt.wantLines, got)
+		})
+	}
+}
+
 func TestCmd_RequiresArgs(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -165,6 +207,10 @@ func TestCmd_RequiresArgs(t *testing.T) {
 		{
 			name: "grep requires GIT_GREP_ARGS",
 			args: []string{"--repos-root", t.TempDir(), "grep"},
+		},
+		{
+			name: "get accepts at most 1 arg",
+			args: []string{"--repos-root", t.TempDir(), "get", "uri1", "uri2"},
 		},
 	}
 
@@ -233,6 +279,11 @@ func TestSubcommands_Help(t *testing.T) {
 			wantContains: []string{"Output modes", "text", "json", "markdown"},
 		},
 		{
+			name:         "get help",
+			subcmd:       "get",
+			wantContains: []string{"URI", "Output modes", "text", "json", "markdown"},
+		},
+		{
 			name:         "read help",
 			subcmd:       "read",
 			wantContains: []string{"Output modes", "text", "json", "markdown"},
@@ -265,7 +316,7 @@ func TestSubcommands_Help(t *testing.T) {
 		{
 			name:         "mcp help",
 			subcmd:       "mcp",
-			wantContains: []string{"--enable-do", "git_iter_do"},
+			wantContains: []string{"--enable-do", "git_iter_do", "--enable-get", "git_iter_get"},
 		},
 	}
 

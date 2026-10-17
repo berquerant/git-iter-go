@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -40,6 +42,7 @@ func TestCommand_Builders(t *testing.T) {
 	assert.Equal(t, []string{"/usr/bin/git", "--no-pager", "diff", "--stat"}, c.DiffCmd(false, "--stat"))
 	assert.Equal(t, []string{"/usr/bin/git", "status", "--short"}, c.StatusCmd())
 	assert.Equal(t, []string{"/usr/bin/git", "status", "--porcelain"}, c.StatusCmd("--porcelain"))
+	assert.Equal(t, []string{"/usr/bin/git", "clone", "--", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}, c.CloneCmd("https://github.com/org/repo.git", "/repos/github.com/org/repo"))
 
 	def := git.New("", nil)
 	assert.Equal(t, git.DefaultCommand, def.GitBin())
@@ -243,3 +246,252 @@ func TestCommand_RemoteURL(t *testing.T) {
 		})
 	}
 }
+
+func TestURI2RelPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		uri     string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "https with .git",
+			uri:  "https://github.com/berquerant/git-iter-go.git",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "https without .git",
+			uri:  "https://github.com/berquerant/git-iter-go",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "https with trailing slash",
+			uri:  "https://github.com/berquerant/git-iter-go/",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "http URL",
+			uri:  "http://example.com/org/repo.git",
+			want: "example.com/org/repo",
+		},
+		{
+			name: "scp-like ssh with .git",
+			uri:  "git@github.com:berquerant/git-iter-go.git",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "scp-like ssh without .git",
+			uri:  "git@github.com:berquerant/git-iter-go",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "scp-like ssh with nested groups",
+			uri:  "git@gitlab.com:group/sub/repo.git",
+			want: "gitlab.com/group/sub/repo",
+		},
+		{
+			name: "git:// protocol",
+			uri:  "git://github.com/berquerant/git-iter-go.git",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "ssh:// protocol with user and port",
+			uri:  "ssh://git@github.com:22/berquerant/git-iter-go.git",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name: "repo name containing .git in middle",
+			uri:  "https://github.com/berquerant/my.git.repo.git",
+			want: "github.com/berquerant/my.git.repo",
+		},
+		{
+			name: "scheme-less host/user/repo",
+			uri:  "github.com/berquerant/git-iter-go",
+			want: "github.com/berquerant/git-iter-go",
+		},
+		{
+			name:    "empty string",
+			uri:     "",
+			wantErr: true,
+		},
+		{
+			name:    "host only",
+			uri:     "https://github.com",
+			wantErr: true,
+		},
+		{
+			name:    "single word",
+			uri:     "notauri",
+			wantErr: true,
+		},
+		{
+			name:    "path traversal",
+			uri:     "https://github.com/berquerant/..",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash option injection",
+			uri:     "--upload-pack=evil/repo",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash short flag",
+			uri:     "-o/repo",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash hostname in https URL",
+			uri:     "https://-evil.com/org/repo.git",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash hostname in scp syntax",
+			uri:     "git@-evil.com:org/repo.git",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := git.URI2RelPath(tt.uri)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCommand_Clone(t *testing.T) {
+	t.Parallel()
+
+	fake := newFakeRunner()
+	c := git.New("git", fake)
+	err := c.Clone(context.Background(), "https://github.com/org/repo.git", "/repos/github.com/org/repo", io.Discard)
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"git", "clone", "--", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}}, fake.Calls())
+}
+
+func TestResolveCloneDir(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		reposRoot string
+		uri       string
+		want      string
+		wantErr   bool
+	}{
+		{
+			name:      "valid root and URI",
+			reposRoot: "/repos",
+			uri:       "https://github.com/org/repo.git",
+			want:      "/repos/github.com/org/repo",
+		},
+		{
+			name:      "empty reposRoot",
+			reposRoot: "",
+			uri:       "https://github.com/org/repo.git",
+			wantErr:   true,
+		},
+		{
+			name:      "invalid URI",
+			reposRoot: "/repos",
+			uri:       "invalid",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := git.ResolveCloneDir(tt.reposRoot, tt.uri)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestCommand_EnsureCloned(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, root string, fake *fakeRunner)
+		reposRoot func(root string) string
+		uri       string
+		wantCalls func(targetDir string) [][]string
+		wantErr   bool
+	}{
+		{
+			name: "skips clone when repository already exists",
+			setup: func(t *testing.T, root string, _ *fakeRunner) {
+				require.NoError(t, os.MkdirAll(filepath.Join(root, "github.com", "org", "repo", ".git"), 0o755))
+			},
+			reposRoot: func(root string) string { return root },
+			uri:       "https://github.com/org/repo.git",
+			wantCalls: func(_ string) [][]string { return nil },
+		},
+		{
+			name:  "clones repository when not present",
+			setup: func(_ *testing.T, _ string, _ *fakeRunner) {},
+			reposRoot: func(root string) string {
+				return root
+			},
+			uri: "https://github.com/org/repo.git",
+			wantCalls: func(targetDir string) [][]string {
+				return [][]string{{"git", "clone", "--", "https://github.com/org/repo.git", targetDir}}
+			},
+		},
+		{
+			name: "returns error when clone fails",
+			setup: func(_ *testing.T, _ string, fake *fakeRunner) {
+				fake.on("clone", func(_ []string, _, _ io.Writer) error {
+					return fmt.Errorf("clone failed")
+				})
+			},
+			reposRoot: func(root string) string { return root },
+			uri:       "https://github.com/org/repo.git",
+			wantErr:   true,
+		},
+		{
+			name:      "returns error when reposRoot is empty",
+			setup:     func(_ *testing.T, _ string, _ *fakeRunner) {},
+			reposRoot: func(_ string) string { return "" },
+			uri:       "https://github.com/org/repo.git",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			fake := newFakeRunner()
+			tt.setup(t, root, fake)
+
+			c := git.New("git", fake)
+			got, err := c.EnsureCloned(context.Background(), tt.reposRoot(root), tt.uri, io.Discard)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			expectedDir := filepath.Join(root, "github.com", "org", "repo")
+			assert.Equal(t, expectedDir, got)
+			assert.Equal(t, tt.wantCalls(expectedDir), fake.Calls())
+		})
+	}
+}
+
+
+

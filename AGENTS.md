@@ -26,6 +26,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │   ├── do.go                      # "do" subcommand: run commands across matched repos
 │   │   ├── grep.go                    # "grep" subcommand: git grep with repository prefix
 │   │   ├── list.go                    # "list" / "ls" subcommand: discover and list repo paths
+│   │   ├── get.go                     # "get" subcommand: resolve or clone repo by URI, or list repo paths
 │   │   ├── read.go                    # "read" subcommand: execute commands for repos fed via stdin
 │   │   ├── pull.go                    # "pull" subcommand: git pull across matched repos with branch switching
 │   │   ├── fetch.go                   # "fetch" subcommand: git fetch across matched repos with default branch filter
@@ -40,13 +41,13 @@ This document provides guidance for AI agents working on this codebase.
 │   │   │   ├── dash.go                # Dash separation logic (SplitWithDash)
 │   │   │   ├── do.go                  # Do subcommand argument parsing (DoArgs, ParseDoArgs)
 │   │   │   ├── grep.go                # Grep subcommand argument parsing (GrepArgs, ParseGrepArgs)
-│   │   │   ├── repo.go                # Repo listing & reading argument parsing (ListArgs, ReadArgs)
+│   │   │   ├── repo.go                # Repo listing, reading, & get argument parsing (ListArgs, ReadArgs, GetArgs)
 │   │   │   ├── git_sync.go            # Remote sync argument parsing (PullArgs, FetchArgs)
 │   │   │   └── git_inspect.go         # Git status, diff, ls-files argument parsing
 │   │   └── runner/                    # Subcommand runner orchestration package
 │   │       ├── common.go              # Shared task construction and streaming execution logic
 │   │       ├── do.go                  # RunDo, RunRead command runners
-│   │       ├── repo.go                # RunList repository runner
+│   │       ├── repo.go                # RunList, RunGet repository runners
 │   │       ├── grep.go                # RunGrep runner with path prefixing
 │   │       ├── git_sync.go            # RunPull, RunFetch runners
 │   │       └── git_inspect.go         # RunLsFiles, RunStatus, RunDiff runners
@@ -57,6 +58,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │       ├── common.go              # Shared finder, timeout, and execution helpers
 │   │       ├── git_common.go          # Shared git command tool registration helper
 │   │       ├── list.go                # git_iter_list tool
+│   │       ├── get.go                 # git_iter_get tool
 │   │       ├── do.go                  # git_iter_do tool
 │   │       ├── grep.go                # git_iter_grep tool
 │   │       ├── ls_files.go            # git_iter_ls_files tool
@@ -67,7 +69,7 @@ This document provides guidance for AI agents working on this codebase.
 │   ├── executor/                      # Unstructured/streaming concurrent task execution
 │   │   └── executor.go                # Executor: concurrency control (semaphore), timeout, fail-fast
 │   ├── git/                           # Centralized git CLI command builder and operations
-│   │   └── git.go                     # git.Command: branch operations, default branch resolution, grep/pull builder
+│   │   └── git.go                     # git.Command: branch operations, default branch resolution, clone/grep/pull builder, URI2RelPath, IsRepo
 │   ├── markdown/                      # Pure Markdown document rendering and formatting
 │   │   ├── details.go                 # Details section formatting (Details, FormatDetails, FormatCodeDetails)
 │   │   ├── heading.go                 # Heading prefix and header generation (HeadingPrefix, WriteHeader)
@@ -87,7 +89,7 @@ This document provides guidance for AI agents working on this codebase.
 │   │       └── executor.go            # MarkdownExecutor, LsFilesMarkdownExecutor
 │   ├── repo/                          # Repository discovery and path filtering
 │   │   ├── repo.go                    # Finder interface, StdinFinder, scanning helpers
-│   │   ├── fs.go                      # FilesystemFinder, CommandFinder, NewFinder
+│   │   ├── fs.go                      # FilesystemFinder, CommandFinder, NewFinder, IsGitRepo
 │   │   ├── filter.go                  # FilteredFinder, StatusFilterFinder, RemoteURLFilterFinder, DefaultBranchFilterFinder, BranchFilterFinder
 │   │   └── sort_limit.go              # SortedFinder, LimitedFinder
 │   └── runner/                        # Process execution abstraction
@@ -117,6 +119,7 @@ flowchart TD
         DoCmd[do]
         GrepCmd[grep]
         ListCmd[list / ls]
+        GetCmd[get]
         LsFilesCmd["ls-files / lsf"]
         ReadCmd[read]
         PullCmd[pull]
@@ -199,6 +202,7 @@ flowchart TD
 
 ### 2. Repository Discovery (`internal/repo`)
 - `Finder`: Interface `Find(ctx context.Context) ([]string, error)` producing absolute repository paths.
+- `IsGitRepo`: Helper checking whether a directory contains a `.git` entry (file or directory).
 - `FilesystemFinder`: Recursively searches `Root` for directories containing a `.git` entry (prunes descending into nested git repositories).
 - `CommandFinder`: Executes a custom shell command to fetch repository paths (e.g., integrating with `ghq` or locate).
 - `StdinFinder`: Reads newline-delimited repository paths from stdin (used by `read`).
@@ -231,6 +235,7 @@ flowchart TD
 - Powered by `github.com/modelcontextprotocol/go-sdk`.
 - Exposes tools to LLM/MCP clients:
   - `git_iter_list`: Discover repositories matching patterns under a root directory.
+  - `git_iter_get`: Resolve or clone a repository by URI under the root directory, or list discovered repositories if URI is omitted (disabled by default for security, enabled via `--enable-get`).
   - `git_iter_do`: Run arbitrary commands across matching repositories, returning exit codes, stdout, and stderr (disabled by default for security, enabled via `--enable-do`).
   - `git_iter_grep`: Run `git grep` across matching repositories with prefixed output paths.
   - `git_iter_ls_files`: Run `git ls-files` across matching repositories with prefixed output paths.

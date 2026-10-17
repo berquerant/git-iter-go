@@ -17,6 +17,57 @@ func makeGitRepo(t *testing.T, parent, name string) string {
 	return testutil.MakeGitRepo(t, parent, name)
 }
 
+func TestIsGitRepo(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		setup func(root string) string
+		want  bool
+	}{
+		{
+			name: "directory with .git directory",
+			setup: func(root string) string {
+				return makeGitRepo(t, root, "repo")
+			},
+			want: true,
+		},
+		{
+			name: "directory with .git file (worktree)",
+			setup: func(root string) string {
+				dir := filepath.Join(root, "worktree")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: /some/path\n"), 0o644))
+				return dir
+			},
+			want: true,
+		},
+		{
+			name: "directory without .git",
+			setup: func(root string) string {
+				dir := filepath.Join(root, "notarepo")
+				require.NoError(t, os.MkdirAll(dir, 0o755))
+				return dir
+			},
+			want: false,
+		},
+		{
+			name: "non-existent directory",
+			setup: func(root string) string {
+				return filepath.Join(root, "missing")
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := tt.setup(t.TempDir())
+			assert.Equal(t, tt.want, repo.IsGitRepo(dir))
+		})
+	}
+}
+
 func TestFilesystemFinder(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
