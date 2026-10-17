@@ -40,7 +40,7 @@ func TestCommand_Builders(t *testing.T) {
 	assert.Equal(t, []string{"/usr/bin/git", "--no-pager", "diff", "--stat"}, c.DiffCmd(false, "--stat"))
 	assert.Equal(t, []string{"/usr/bin/git", "status", "--short"}, c.StatusCmd())
 	assert.Equal(t, []string{"/usr/bin/git", "status", "--porcelain"}, c.StatusCmd("--porcelain"))
-	assert.Equal(t, []string{"/usr/bin/git", "clone", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}, c.CloneCmd("https://github.com/org/repo.git", "/repos/github.com/org/repo"))
+	assert.Equal(t, []string{"/usr/bin/git", "clone", "--", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}, c.CloneCmd("https://github.com/org/repo.git", "/repos/github.com/org/repo"))
 
 	def := git.New("", nil)
 	assert.Equal(t, git.DefaultCommand, def.GitBin())
@@ -329,6 +329,26 @@ func TestURI2RelPath(t *testing.T) {
 			uri:     "https://github.com/berquerant/..",
 			wantErr: true,
 		},
+		{
+			name:    "leading dash option injection",
+			uri:     "--upload-pack=evil/repo",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash short flag",
+			uri:     "-o/repo",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash hostname in https URL",
+			uri:     "https://-evil.com/org/repo.git",
+			wantErr: true,
+		},
+		{
+			name:    "leading dash hostname in scp syntax",
+			uri:     "git@-evil.com:org/repo.git",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -352,7 +372,7 @@ func TestCommand_Clone(t *testing.T) {
 	c := git.New("git", fake)
 	err := c.Clone(context.Background(), "https://github.com/org/repo.git", "/repos/github.com/org/repo", io.Discard)
 	require.NoError(t, err)
-	assert.Equal(t, [][]string{{"git", "clone", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}}, fake.Calls())
+	assert.Equal(t, [][]string{{"git", "clone", "--", "https://github.com/org/repo.git", "/repos/github.com/org/repo"}}, fake.Calls())
 }
 
 func TestResolveCloneDir(t *testing.T) {

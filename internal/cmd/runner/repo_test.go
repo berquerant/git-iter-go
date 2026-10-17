@@ -153,7 +153,7 @@ func TestRunGet(t *testing.T) {
 		assert.Equal(t, wantDir+"\n", stdout.String())
 		assert.Equal(t, "Cloning into...\n", stderr.String())
 		require.Len(t, r.Calls, 1)
-		assert.Equal(t, []string{"git", "clone", "git@github.com:berquerant/git-iter-go.git", wantDir}, r.Calls[0].Command)
+		assert.Equal(t, []string{"git", "clone", "--", "git@github.com:berquerant/git-iter-go.git", wantDir}, r.Calls[0].Command)
 	})
 
 	t.Run("clone failure returns error", func(t *testing.T) {

@@ -179,14 +179,14 @@ func (c *Command) ResolveDefaultBranch(ctx context.Context, dir string) (string,
 	return "", fmt.Errorf("unable to determine default branch")
 }
 
-// CloneCmd constructs argv for "git clone" with the given URI and destination directory.
+// CloneCmd constructs argv for "git clone -- <uri> <dir>" with the given URI and destination directory.
 func (c *Command) CloneCmd(uri, dir string) []string {
-	return []string{c.GitBin(), "clone", uri, dir}
+	return []string{c.GitBin(), "clone", "--", uri, dir}
 }
 
 // Clone clones uri into targetDir, routing command output to stderr.
 func (c *Command) Clone(ctx context.Context, uri, targetDir string, stderr io.Writer) error {
-	return c.Run(ctx, "", []string{"clone", uri, targetDir}, stderr, stderr)
+	return c.Run(ctx, "", c.CloneCmd(uri, targetDir)[1:], stderr, stderr)
 }
 
 // ResolveCloneDir resolves the absolute local directory path under reposRoot for uri.
@@ -227,7 +227,11 @@ func URI2RelPath(uri string) (string, error) {
 	raw = strings.TrimRight(raw, "/")
 
 	parts := strings.Split(raw, "/")
-	if len(parts) < 2 || slices.Contains(parts, "") || slices.Contains(parts, ".") || slices.Contains(parts, "..") {
+	if len(parts) < 2 ||
+		strings.HasPrefix(parts[0], "-") ||
+		slices.Contains(parts, "") ||
+		slices.Contains(parts, ".") ||
+		slices.Contains(parts, "..") {
 		return "", fmt.Errorf("invalid repository URI: %q", uri)
 	}
 
@@ -237,6 +241,9 @@ func URI2RelPath(uri string) (string, error) {
 func extractHostAndPath(s string) (string, error) {
 	if s == "" {
 		return "", fmt.Errorf("empty repository URI")
+	}
+	if strings.HasPrefix(s, "-") {
+		return "", fmt.Errorf("invalid repository URI: %q", s)
 	}
 
 	if strings.Contains(s, "://") {
