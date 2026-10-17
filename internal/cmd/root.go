@@ -77,6 +77,7 @@ Repository source (one of the following is required):
 Environment variables (all prefixed with GIT_ITER_):
   GIT_ITER_MAX_PROCS      Maximum parallel processes (default: 1).
   GIT_ITER_REPOS_ROOT     Equivalent to --repos-root.
+  GIT_ITER_WORKTREE_ROOT  Equivalent to --worktree-root.
   GIT_ITER_LIST_REPOS     Equivalent to --list-repos.
   GIT_ITER_ABS_PATH       Equivalent to --abs-path (set to any non-empty
                           value to enable).
