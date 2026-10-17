@@ -18,6 +18,11 @@ func WriteRepoJSONL(w io.Writer, r common.RepoResult) error {
 	return writeJSON(w, r)
 }
 
+// WriteWorktreeJSONL encodes r as a single compact JSON line to w.
+func WriteWorktreeJSONL(w io.Writer, r common.WorktreeResult) error {
+	return writeJSON(w, r)
+}
+
 // WriteFileJSONL encodes r as a single compact JSON line to w.
 func WriteFileJSONL(w io.Writer, r common.FileResult) error {
 	return writeJSON(w, r)

@@ -19,6 +19,14 @@ type (
 	StatusToolOutput      = tool.StatusToolOutput
 	DiffToolInput         = tool.DiffToolInput
 	DiffToolOutput        = tool.DiffToolOutput
-	GetToolInput          = tool.GetToolInput
-	GetToolOutput         = tool.GetToolOutput
+	GetToolInput             = tool.GetToolInput
+	GetToolOutput            = tool.GetToolOutput
+	WorktreeListToolInput    = tool.WorktreeListToolInput
+	WorktreeListToolOutput   = tool.WorktreeListToolOutput
+	WorktreeAddToolInput     = tool.WorktreeAddToolInput
+	WorktreeAddToolOutput    = tool.WorktreeAddToolOutput
+	WorktreeRemoveToolInput  = tool.WorktreeRemoveToolInput
+	WorktreeRemoveToolOutput = tool.WorktreeRemoveToolOutput
+	WorktreePruneToolInput   = tool.WorktreePruneToolInput
+	WorktreePruneToolOutput  = tool.WorktreePruneToolOutput
 )

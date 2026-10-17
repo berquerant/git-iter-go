@@ -45,23 +45,13 @@ func RegisterGet(server *mcpsdk.Server, cfg *config.Config) {
 			root = cfg.ReposRoot
 		}
 
-		timeout, err := resolveTimeout(in.Timeout, cfg)
+		runCtx, cancel, err := withResolvedTimeout(ctx, in.Timeout, cfg)
 		if err != nil {
 			return nil, GetToolOutput{}, err
 		}
+		defer cancel()
 
-		runCtx := ctx
-		if timeout > 0 {
-			var cancel context.CancelFunc
-			runCtx, cancel = context.WithTimeout(ctx, timeout)
-			defer cancel()
-		}
-
-		gitCmd := ""
-		if cfg != nil {
-			gitCmd = cfg.GitCommandOrFallback()
-		}
-		g := git.New(gitCmd, nil)
+		g := git.New(cfg.GitCommandOrFallback(), nil)
 
 		targetDir, err := g.EnsureCloned(runCtx, root, in.URI, io.Discard)
 		if err != nil {
@@ -69,12 +59,7 @@ func RegisterGet(server *mcpsdk.Server, cfg *config.Config) {
 		}
 
 		return nil, GetToolOutput{
-			Repositories: []output.RepoResult{
-				{
-					RepoAbsPath: targetDir,
-					RepoRelPath: output.RelPath(root, targetDir),
-				},
-			},
+			Repositories: []output.RepoResult{toRepoResult(root, targetDir)},
 		}, nil
 	})
 }

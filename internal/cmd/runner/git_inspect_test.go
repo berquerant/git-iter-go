@@ -21,18 +21,15 @@ func TestRunLsFiles(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		outMode      string
 		paths        []string
 		lsFilesArgs  parse.LsFilesArgs
 		showAbsPath  bool
 		globalAbs    bool
 		runnerOutput string
 		wantStdout   string
-		validateJSON bool
 	}{
 		{
 			name:         "text mode with rel path prefix",
-			outMode:      "text",
 			paths:        []string{"/repos/org/repo1"},
 			lsFilesArgs:  parse.LsFilesArgs{LsFilesFlags: []string{"-c"}},
 			showAbsPath:  false,
@@ -42,7 +39,6 @@ func TestRunLsFiles(t *testing.T) {
 		},
 		{
 			name:         "text mode with showAbsPath",
-			outMode:      "text",
 			paths:        []string{"/repos/org/repo1"},
 			lsFilesArgs:  parse.LsFilesArgs{LsFilesFlags: []string{"-c"}},
 			showAbsPath:  true,
@@ -52,7 +48,6 @@ func TestRunLsFiles(t *testing.T) {
 		},
 		{
 			name:         "text mode with global abs-path",
-			outMode:      "text",
 			paths:        []string{"/repos/org/repo1"},
 			lsFilesArgs:  parse.LsFilesArgs{LsFilesFlags: []string{"-c"}},
 			showAbsPath:  false,
@@ -60,31 +55,15 @@ func TestRunLsFiles(t *testing.T) {
 			runnerOutput: "main.go\n",
 			wantStdout:   "/repos/org/repo1/main.go\n",
 		},
-		{
-			name:         "json mode",
-			outMode:      "json",
-			paths:        []string{"/repos/org/repo1"},
-			lsFilesArgs:  parse.LsFilesArgs{LsFilesFlags: []string{"-c"}},
-			runnerOutput: "main.go\n",
-			validateJSON: true,
-		},
-		{
-			name:         "markdown mode",
-			outMode:      "markdown",
-			paths:        []string{"/repos/org/repo1"},
-			lsFilesArgs:  parse.LsFilesArgs{LsFilesFlags: []string{"-c"}},
-			runnerOutput: "main.go\n",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := &config.Config{
-				MaxProcs:            1,
-				ReposRoot:           "/repos",
-				AbsPath:             tt.globalAbs,
-				MarkdownHeaderLevel: 3,
+				MaxProcs:  1,
+				ReposRoot: "/repos",
+				AbsPath:   tt.globalAbs,
 			}
 			finder := &testutil.FakeFinder{Paths: tt.paths}
 			fakeRunner := &testutil.FakeRunner{Output: tt.runnerOutput}
@@ -93,7 +72,7 @@ func TestRunLsFiles(t *testing.T) {
 			err := runner.RunLsFiles(
 				context.Background(),
 				cfg,
-				tt.outMode,
+				"text",
 				tt.lsFilesArgs,
 				finder,
 				fakeRunner,
@@ -102,27 +81,74 @@ func TestRunLsFiles(t *testing.T) {
 				&stderr,
 			)
 			require.NoError(t, err)
-
-			if tt.validateJSON {
-				line := strings.TrimSpace(stdout.String())
-				var res output.FileResult
-				require.NoError(t, json.Unmarshal([]byte(line), &res))
-				assert.Equal(t, "/repos/org/repo1", res.RepoAbsPath)
-				assert.Equal(t, "org/repo1", res.RepoRelPath)
-				assert.Equal(t, "main.go", res.FileRelPath)
-				assert.Equal(t, "/repos/org/repo1/main.go", res.FileAbsPath)
-			} else if tt.outMode == "markdown" {
-				out := stdout.String()
-				assert.Contains(t, out, "## ls-files: root = /repos\n\n")
-				assert.Contains(t, out, "### org/repo1\n\nTotal: 1\n\n<details>\n<summary>Files</summary>\n\n- main.go\n\n</details>\n\n")
-				assert.Contains(t, out, "---\n\n## Summary\n\n")
-				assert.Contains(t, out, "- **Total Repositories**: 1\n")
-				assert.Contains(t, out, "- **Total Files**: 1\n")
-			} else {
-				assert.Equal(t, tt.wantStdout, stdout.String())
-			}
+			assert.Equal(t, tt.wantStdout, stdout.String())
 		})
 	}
+}
+
+func TestRunLsFiles_StructuredOutput(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		MaxProcs:            1,
+		ReposRoot:           "/repos",
+		MarkdownHeaderLevel: 3,
+	}
+	finder := &testutil.FakeFinder{Paths: []string{"/repos/org/repo1"}}
+	lsFilesArgs := parse.LsFilesArgs{LsFilesFlags: []string{"-c"}}
+
+	t.Run("json mode", func(t *testing.T) {
+		t.Parallel()
+		fakeRunner := &testutil.FakeRunner{Output: "main.go\n"}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunLsFiles(
+			context.Background(),
+			cfg,
+			"json",
+			lsFilesArgs,
+			finder,
+			fakeRunner,
+			false,
+			&stdout,
+			&stderr,
+		)
+		require.NoError(t, err)
+
+		line := strings.TrimSpace(stdout.String())
+		var res output.FileResult
+		require.NoError(t, json.Unmarshal([]byte(line), &res))
+		assert.Equal(t, "/repos/org/repo1", res.RepoAbsPath)
+		assert.Equal(t, "org/repo1", res.RepoRelPath)
+		assert.Equal(t, "main.go", res.FileRelPath)
+		assert.Equal(t, "/repos/org/repo1/main.go", res.FileAbsPath)
+	})
+
+	t.Run("markdown mode", func(t *testing.T) {
+		t.Parallel()
+		fakeRunner := &testutil.FakeRunner{Output: "main.go\n"}
+		var stdout, stderr bytes.Buffer
+
+		err := runner.RunLsFiles(
+			context.Background(),
+			cfg,
+			"markdown",
+			lsFilesArgs,
+			finder,
+			fakeRunner,
+			false,
+			&stdout,
+			&stderr,
+		)
+		require.NoError(t, err)
+
+		out := stdout.String()
+		assert.Contains(t, out, "## ls-files: root = /repos\n\n")
+		assert.Contains(t, out, "### org/repo1\n\nTotal: 1\n\n<details>\n<summary>Files</summary>\n\n- main.go\n\n</details>\n\n")
+		assert.Contains(t, out, "---\n\n## Summary\n\n")
+		assert.Contains(t, out, "- **Total Repositories**: 1\n")
+		assert.Contains(t, out, "- **Total Files**: 1\n")
+	})
 }
 
 func TestRunLsFiles_CustomGitCommand(t *testing.T) {

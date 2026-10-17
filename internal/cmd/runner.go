@@ -6,14 +6,18 @@ import (
 
 // Aliases for runner functions moved to internal/cmd/runner.
 var (
-	RunDo      = cmdRunner.RunDo
-	RunRead    = cmdRunner.RunRead
-	RunList    = cmdRunner.RunList
-	RunGrep    = cmdRunner.RunGrep
-	RunPull    = cmdRunner.RunPull
-	RunFetch   = cmdRunner.RunFetch
-	RunLsFiles = cmdRunner.RunLsFiles
-	RunStatus  = cmdRunner.RunStatus
-	RunDiff    = cmdRunner.RunDiff
-	RunGet     = cmdRunner.RunGet
+	RunDo             = cmdRunner.RunDo
+	RunRead           = cmdRunner.RunRead
+	RunList           = cmdRunner.RunList
+	RunGrep           = cmdRunner.RunGrep
+	RunPull           = cmdRunner.RunPull
+	RunFetch          = cmdRunner.RunFetch
+	RunLsFiles        = cmdRunner.RunLsFiles
+	RunStatus         = cmdRunner.RunStatus
+	RunDiff           = cmdRunner.RunDiff
+	RunGet            = cmdRunner.RunGet
+	RunWorktreeList   = cmdRunner.RunWorktreeList
+	RunWorktreeAdd    = cmdRunner.RunWorktreeAdd
+	RunWorktreeRemove = cmdRunner.RunWorktreeRemove
+	RunWorktreePrune  = cmdRunner.RunWorktreePrune
 )

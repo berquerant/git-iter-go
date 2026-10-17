@@ -251,10 +251,9 @@ func TestURI2RelPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		uri     string
-		want    string
-		wantErr bool
+		name string
+		uri  string
+		want string
 	}{
 		{
 			name: "https with .git",
@@ -311,58 +310,64 @@ func TestURI2RelPath(t *testing.T) {
 			uri:  "github.com/berquerant/git-iter-go",
 			want: "github.com/berquerant/git-iter-go",
 		},
-		{
-			name:    "empty string",
-			uri:     "",
-			wantErr: true,
-		},
-		{
-			name:    "host only",
-			uri:     "https://github.com",
-			wantErr: true,
-		},
-		{
-			name:    "single word",
-			uri:     "notauri",
-			wantErr: true,
-		},
-		{
-			name:    "path traversal",
-			uri:     "https://github.com/berquerant/..",
-			wantErr: true,
-		},
-		{
-			name:    "leading dash option injection",
-			uri:     "--upload-pack=evil/repo",
-			wantErr: true,
-		},
-		{
-			name:    "leading dash short flag",
-			uri:     "-o/repo",
-			wantErr: true,
-		},
-		{
-			name:    "leading dash hostname in https URL",
-			uri:     "https://-evil.com/org/repo.git",
-			wantErr: true,
-		},
-		{
-			name:    "leading dash hostname in scp syntax",
-			uri:     "git@-evil.com:org/repo.git",
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := git.URI2RelPath(tt.uri)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestURI2RelPath_Error(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		uri  string
+	}{
+		{
+			name: "empty string",
+			uri:  "",
+		},
+		{
+			name: "host only",
+			uri:  "https://github.com",
+		},
+		{
+			name: "single word",
+			uri:  "notauri",
+		},
+		{
+			name: "path traversal",
+			uri:  "https://github.com/berquerant/..",
+		},
+		{
+			name: "leading dash option injection",
+			uri:  "--upload-pack=evil/repo",
+		},
+		{
+			name: "leading dash short flag",
+			uri:  "-o/repo",
+		},
+		{
+			name: "leading dash hostname in https URL",
+			uri:  "https://-evil.com/org/repo.git",
+		},
+		{
+			name: "leading dash hostname in scp syntax",
+			uri:  "git@-evil.com:org/repo.git",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := git.URI2RelPath(tt.uri)
+			require.Error(t, err)
 		})
 	}
 }

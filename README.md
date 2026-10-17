@@ -34,6 +34,7 @@ It supports parallel execution controls, per-process timeouts, fail-fast behavio
   - `fetch`: Fetch with optional default branch restriction (`-s, --default`).
   - `list` (`ls`): List matching repository paths.
   - `get`: Resolve or clone a repository by URI under `--repos-root`, or list repository paths when URI is omitted.
+  - `worktree` (`wt`): Manage git worktrees across repositories (`list`, `add -b`, `remove -f`, `prune --all --dry-run`).
   - `read`: Execute commands for repository paths fed via stdin.
   - `mcp`: Model Context Protocol server over stdio for LLM integration.
 
@@ -66,6 +67,7 @@ Settings can be specified via CLI flags or environment variables (`GIT_ITER_*`):
 | Flag | Environment Variable | Default | Description |
 |---|---|---|---|
 | `-r, --repos-root` | `GIT_ITER_REPOS_ROOT` | `""` | Root directory scanned recursively for repositories |
+| `--worktree-root` | `GIT_ITER_WORKTREE_ROOT` | `<repos-root>/git-worktree` | Root directory for git worktrees |
 | `--list-repos` | `GIT_ITER_LIST_REPOS` | `""` | Shell command outputting repository paths (one per line) |
 | `-p, --max-procs` | `GIT_ITER_MAX_PROCS` | `1` | Maximum parallel worker processes |
 | `-o, --out` | - | `text` | Output mode (`text`, `json`, `markdown`/`md`) |
@@ -173,6 +175,39 @@ git-iter -r ~/src pull --switch-default --switch-back
 git-iter -r ~/src fetch --default
 ```
 
+### 7. Manage Git Worktrees (`worktree` / `wt`)
+
+Worktrees for a repository `<repos-root>/<DIR>` are placed at `<worktree-root>/<DIR>/<BRANCH>`:
+
+```bash
+# List worktrees for the current repository
+git-iter -r ~/src wt list
+
+# List all worktrees across all repositories under worktree-root
+git-iter -r ~/src wt list -a
+
+# List unique main repository paths that have worktrees
+git-iter -r ~/src wt list --repo -a
+
+# Create a worktree for an existing branch in the current repository and print its path
+git-iter -r ~/src wt add feat/existing
+
+# Create a new branch from origin/main in a new worktree and print its path
+git-iter -r ~/src wt add -b feat/new origin/main
+
+# Remove a worktree by branch name for the current repository
+git-iter -r ~/src wt remove feat/new
+
+# Force-remove a worktree even if dirty or containing untracked files
+git-iter -r ~/src wt remove -f feat/new
+
+# Prune worktrees merged into the default branch for the current repository
+git-iter -r ~/src wt prune
+
+# Dry-run prune across all repositories with worktrees
+git-iter -r ~/src wt prune --all --dry-run
+```
+
 ---
 
 ## Model Context Protocol (MCP) Server
@@ -190,13 +225,17 @@ git-iter -r ~/src mcp
 - `git_iter_diff`: Run `git diff` in matching repositories.
 - `git_iter_grep`: Run `git grep` across matching repositories.
 - `git_iter_ls_files`: Run `git ls-files` across matching repositories.
+- `git_iter_worktree_list`: Discover and list git worktrees (or unique main repositories with `repo=true`) under the worktree root.
+- `git_iter_worktree_add`: Create a git worktree for the target repository (**disabled by default for security**, opt-in via `--enable-worktree`).
+- `git_iter_worktree_remove`: Remove a git worktree for the target repository (**disabled by default for security**, opt-in via `--enable-worktree`).
+- `git_iter_worktree_prune`: Remove worktrees merged into the default branch and prune stale administrative files (**disabled by default for security**, opt-in via `--enable-worktree`).
 - `git_iter_get`: Resolve or clone a repository by URI under the root directory, or list discovered repositories (**disabled by default for security**, opt-in via `--enable-get`).
 - `git_iter_do`: Execute arbitrary commands in matching repositories (**disabled by default for security**, opt-in via `--enable-do`).
 
 To enable optional tools for the MCP server:
 
 ```bash
-git-iter -r ~/src mcp --enable-do --enable-get
+git-iter -r ~/src mcp --enable-do --enable-get --enable-worktree
 ```
 
 ---

@@ -155,6 +155,10 @@ func TestRunGet(t *testing.T) {
 		require.Len(t, r.Calls, 1)
 		assert.Equal(t, []string{"git", "clone", "--", "git@github.com:berquerant/git-iter-go.git", wantDir}, r.Calls[0].Command)
 	})
+}
+
+func TestRunGet_ErrorAndFormats(t *testing.T) {
+	t.Parallel()
 
 	t.Run("clone failure returns error", func(t *testing.T) {
 		t.Parallel()

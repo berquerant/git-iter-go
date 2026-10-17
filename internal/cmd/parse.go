@@ -18,6 +18,17 @@ var ErrConflictingBranchFlags = fmt.Errorf("cannot specify both --default-branch
 
 // buildFinder constructs a filtered, sorted, and limited Finder from config and patterns.
 func buildFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
+	base := repo.NewFinder(cfg.ReposRoot, cfg.ListRepos)
+	return buildFinderFromBase(base, cfg, patterns)
+}
+
+// buildWorktreeFinder constructs a filtered, sorted, and limited Finder rooted at WorktreeRoot.
+func buildWorktreeFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
+	base := &repo.FilesystemFinder{Root: cfg.WorktreeRootOrFallback()}
+	return buildFinderFromBase(base, cfg, patterns)
+}
+
+func buildFinderFromBase(base repo.Finder, cfg *config.Config, patterns []string) (repo.Finder, error) {
 	if cfg.DirtyOnly && cfg.CleanOnly {
 		return nil, ErrConflictingFilterFlags
 	}
@@ -25,7 +36,6 @@ func buildFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
 		return nil, ErrConflictingBranchFlags
 	}
 
-	base := repo.NewFinder(cfg.ReposRoot, cfg.ListRepos)
 	finder, err := repo.NewFilteredFinder(base, patterns)
 	if err != nil {
 		return nil, err
@@ -66,16 +76,20 @@ func buildFinder(cfg *config.Config, patterns []string) (repo.Finder, error) {
 
 // Aliases for types and functions moved to internal/cmd/parse.
 type (
-	DoArgs      = parse.DoArgs
-	GrepArgs    = parse.GrepArgs
-	ListArgs    = parse.ListArgs
-	ReadArgs    = parse.ReadArgs
-	PullArgs    = parse.PullArgs
-	FetchArgs   = parse.FetchArgs
-	LsFilesArgs = parse.LsFilesArgs
-	StatusArgs  = parse.StatusArgs
-	DiffArgs    = parse.DiffArgs
-	GetArgs     = parse.GetArgs
+	DoArgs             = parse.DoArgs
+	GrepArgs           = parse.GrepArgs
+	ListArgs           = parse.ListArgs
+	ReadArgs           = parse.ReadArgs
+	PullArgs           = parse.PullArgs
+	FetchArgs          = parse.FetchArgs
+	LsFilesArgs        = parse.LsFilesArgs
+	StatusArgs         = parse.StatusArgs
+	DiffArgs           = parse.DiffArgs
+	GetArgs            = parse.GetArgs
+	WorktreeListArgs   = parse.WorktreeListArgs
+	WorktreeAddArgs    = parse.WorktreeAddArgs
+	WorktreeRemoveArgs = parse.WorktreeRemoveArgs
+	WorktreePruneArgs  = parse.WorktreePruneArgs
 )
 
 var (
@@ -96,4 +110,8 @@ var (
 	ParseDiffArgs            = parse.ParseDiffArgs
 	ParseDiffArgsWithDash    = parse.ParseDiffArgsWithDash
 	ParseGetArgs             = parse.ParseGetArgs
+	ParseWorktreeListArgs    = parse.ParseWorktreeListArgs
+	ParseWorktreeAddArgs     = parse.ParseWorktreeAddArgs
+	ParseWorktreeRemoveArgs  = parse.ParseWorktreeRemoveArgs
+	ParseWorktreePruneArgs   = parse.ParseWorktreePruneArgs
 )

@@ -77,6 +77,7 @@ Repository source (one of the following is required):
 Environment variables (all prefixed with GIT_ITER_):
   GIT_ITER_MAX_PROCS      Maximum parallel processes (default: 1).
   GIT_ITER_REPOS_ROOT     Equivalent to --repos-root.
+  GIT_ITER_WORKTREE_ROOT  Equivalent to --worktree-root.
   GIT_ITER_LIST_REPOS     Equivalent to --list-repos.
   GIT_ITER_ABS_PATH       Equivalent to --abs-path (set to any non-empty
                           value to enable).
@@ -94,7 +95,7 @@ Flag resolution order (highest priority wins):
 			if err != nil {
 				return err
 			}
-			if cfg.ReposRoot == "" && cfg.ListRepos == "" && !slices.Contains([]string{
+			if cfg.ReposRoot == "" && cfg.ListRepos == "" && cfg.WorktreeRoot == "" && !slices.Contains([]string{
 				"version",
 				"help",
 				"read",
@@ -127,6 +128,7 @@ Flag resolution order (highest priority wins):
 		NewGrepCmd(),
 		NewListCmd(),
 		NewGetCmd(),
+		NewWorktreeCmd(),
 		NewReadCmd(),
 		NewPullCmd(),
 		NewFetchCmd(),

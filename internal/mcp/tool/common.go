@@ -52,28 +52,54 @@ type finderParams struct {
 	Status    RepoStatusFilterInput
 }
 
-func applyStatusFilter(finder repo.Finder, cfg *config.Config, dirtyOnly, cleanOnly bool) repo.Finder {
+func applyStatusFilter(finder repo.Finder, cfg *config.Config, status RepoStatusFilterInput) (repo.Finder, error) {
+	dirtyOnly := status.DirtyOnly
+	cleanOnly := status.CleanOnly
+	if !dirtyOnly && !cleanOnly && cfg != nil {
+		dirtyOnly = cfg.DirtyOnly
+		cleanOnly = cfg.CleanOnly
+	}
+	if dirtyOnly && cleanOnly {
+		return nil, ErrConflictingFilterFlags
+	}
 	if !dirtyOnly && !cleanOnly {
-		return finder
+		return finder, nil
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
-	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
+	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly), nil
 }
 
-func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, defaultOnly, notDefaultOnly bool) repo.Finder {
+func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, d RepoDiscoveryInput) (repo.Finder, error) {
+	defaultOnly := d.DefaultBranchOnly
+	notDefaultOnly := d.NotDefaultBranchOnly
+	if !defaultOnly && !notDefaultOnly && cfg != nil {
+		defaultOnly = cfg.DefaultBranchOnly
+		notDefaultOnly = cfg.NotDefaultBranchOnly
+	}
+	if defaultOnly && notDefaultOnly {
+		return nil, ErrConflictingBranchFlags
+	}
 	if !defaultOnly && !notDefaultOnly {
-		return finder
+		return finder, nil
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
+	g := git.New(cfg.GitCommandOrFallback(), nil)
+	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly), nil
+}
+
+func applySortAndLimit(finder repo.Finder, cfg *config.Config, d RepoDiscoveryInput) repo.Finder {
+	sortAsc := d.Sort
+	sortDesc := d.SortReverse
+	if !sortAsc && !sortDesc && cfg != nil {
+		sortAsc = cfg.Sort
+		sortDesc = cfg.SortReverse
 	}
-	g := git.New(gitCmd, nil)
-	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly)
+	finder = repo.NewSortedFinder(finder, sortAsc, sortDesc)
+
+	limit := d.Limit
+	if limit <= 0 && cfg != nil {
+		limit = cfg.Limit
+	}
+	return repo.NewLimitedFinder(finder, limit)
 }
 
 func applyBranchFilter(finder repo.Finder, cfg *config.Config, branch string) (repo.Finder, error) {
@@ -87,11 +113,7 @@ func applyBranchFilter(finder repo.Finder, cfg *config.Config, branch string) (r
 	if err != nil {
 		return nil, fmt.Errorf("invalid branch regex %q: %w", branch, err)
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewBranchFilterFinder(finder, g, re), nil
 }
 
@@ -106,35 +128,11 @@ func applyRemoteURLFilter(finder repo.Finder, cfg *config.Config, remoteURL stri
 	if err != nil {
 		return nil, fmt.Errorf("invalid remote_url regex %q: %w", remoteURL, err)
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewRemoteURLFilterFinder(finder, g, re), nil
 }
 
 func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error) {
-	dirtyOnly := p.Status.DirtyOnly
-	cleanOnly := p.Status.CleanOnly
-	if !dirtyOnly && !cleanOnly && cfg != nil {
-		dirtyOnly = cfg.DirtyOnly
-		cleanOnly = cfg.CleanOnly
-	}
-	if dirtyOnly && cleanOnly {
-		return nil, "", ErrConflictingFilterFlags
-	}
-
-	defaultBranchOnly := p.Discovery.DefaultBranchOnly
-	notDefaultBranchOnly := p.Discovery.NotDefaultBranchOnly
-	if !defaultBranchOnly && !notDefaultBranchOnly && cfg != nil {
-		defaultBranchOnly = cfg.DefaultBranchOnly
-		notDefaultBranchOnly = cfg.NotDefaultBranchOnly
-	}
-	if defaultBranchOnly && notDefaultBranchOnly {
-		return nil, "", ErrConflictingBranchFlags
-	}
-
 	root := p.Discovery.ReposRoot
 	listRepos := ""
 	if root == "" && cfg != nil {
@@ -146,38 +144,32 @@ func buildFinder(cfg *config.Config, p finderParams) (repo.Finder, string, error
 	}
 
 	base := repo.NewFinder(root, listRepos)
+	finder, err := buildFinderFromBase(base, cfg, p)
+	if err != nil {
+		return nil, "", err
+	}
+	return finder, root, nil
+}
+
+func buildFinderFromBase(base repo.Finder, cfg *config.Config, p finderParams) (repo.Finder, error) {
 	finder, err := repo.NewFilteredFinder(base, p.Discovery.Patterns)
 	if err != nil {
-		return nil, "", fmt.Errorf("invalid pattern: %w", err)
+		return nil, fmt.Errorf("invalid pattern: %w", err)
 	}
-
-	sortAsc := p.Discovery.Sort
-	sortDesc := p.Discovery.SortReverse
-	if !sortAsc && !sortDesc && cfg != nil {
-		sortAsc = cfg.Sort
-		sortDesc = cfg.SortReverse
+	finder = applySortAndLimit(finder, cfg, p.Discovery)
+	finder, err = applyStatusFilter(finder, cfg, p.Status)
+	if err != nil {
+		return nil, err
 	}
-	finder = repo.NewSortedFinder(finder, sortAsc, sortDesc)
-
-	limit := p.Discovery.Limit
-	if limit <= 0 && cfg != nil {
-		limit = cfg.Limit
+	finder, err = applyDefaultBranchFilter(finder, cfg, p.Discovery)
+	if err != nil {
+		return nil, err
 	}
-	finder = repo.NewLimitedFinder(finder, limit)
-	finder = applyStatusFilter(finder, cfg, dirtyOnly, cleanOnly)
-	finder = applyDefaultBranchFilter(finder, cfg, defaultBranchOnly, notDefaultBranchOnly)
-
 	finder, err = applyBranchFilter(finder, cfg, p.Discovery.Branch)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
-
-	finder, err = applyRemoteURLFilter(finder, cfg, p.Discovery.RemoteURL)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return finder, root, nil
+	return applyRemoteURLFilter(finder, cfg, p.Discovery.RemoteURL)
 }
 
 func resolveProcs(inMaxProcs int, cfg *config.Config) int {
@@ -202,6 +194,33 @@ func resolveTimeout(inTimeout string, cfg *config.Config) (time.Duration, error)
 		return cfg.Timeout, nil
 	}
 	return 0, nil
+}
+
+func withResolvedTimeout(ctx context.Context, inTimeout string, cfg *config.Config) (context.Context, context.CancelFunc, error) {
+	timeout, err := resolveTimeout(inTimeout, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	if timeout > 0 {
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
+		return runCtx, cancel, nil
+	}
+	return ctx, func() {}, nil
+}
+
+func toRepoResult(root, absPath string) output.RepoResult {
+	return output.RepoResult{
+		RepoAbsPath: absPath,
+		RepoRelPath: output.RelPath(root, absPath),
+	}
+}
+
+func toRepoResults(root string, paths []string) []output.RepoResult {
+	res := make([]output.RepoResult, len(paths))
+	for i, p := range paths {
+		res[i] = toRepoResult(root, p)
+	}
+	return res
 }
 
 func buildProcessTasks(paths []string, root string, command []string) []output.Task {

@@ -9,10 +9,11 @@ import (
 
 // DTO and task type aliases from common subpackage.
 type (
-	Result     = common.Result
-	RepoResult = common.RepoResult
-	FileResult = common.FileResult
-	Task       = common.Task
+	Result         = common.Result
+	RepoResult     = common.RepoResult
+	WorktreeResult = common.WorktreeResult
+	FileResult     = common.FileResult
+	Task           = common.Task
 )
 
 // Helpers from common subpackage.
@@ -30,9 +31,10 @@ type (
 )
 
 var (
-	WriteJSONL     = jsonl.WriteJSONL
-	WriteRepoJSONL = jsonl.WriteRepoJSONL
-	WriteFileJSONL = jsonl.WriteFileJSONL
+	WriteJSONL         = jsonl.WriteJSONL
+	WriteRepoJSONL     = jsonl.WriteRepoJSONL
+	WriteWorktreeJSONL = jsonl.WriteWorktreeJSONL
+	WriteFileJSONL     = jsonl.WriteFileJSONL
 )
 
 // Markdown types and functions from markdown subpackage.
@@ -48,6 +50,7 @@ var (
 	WriteMarkdownSummary        = markdown.WriteMarkdownSummary
 	WriteRepoMarkdown           = markdown.WriteRepoMarkdown
 	WriteListMarkdown           = markdown.WriteListMarkdown
+	WriteWorktreeListMarkdown   = markdown.WriteWorktreeList
 	ParseResultFiles            = markdown.ParseResultFiles
 	WriteLsFilesMarkdown        = markdown.WriteLsFilesMarkdown
 	WriteLsFilesMarkdownSummary = markdown.WriteLsFilesMarkdownSummary
