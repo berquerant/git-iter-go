@@ -334,6 +334,24 @@ func (c *Command) WorktreeRemove(ctx context.Context, repoDir, wtPath string, fo
 	return c.Run(ctx, repoDir, c.WorktreeRemoveCmd(wtPath, force, noForce)[1:], stderr, stderr)
 }
 
+// BranchDeleteCmd constructs argv for "git branch -d <branch>" (or "-D" when force is true).
+func (c *Command) BranchDeleteCmd(branch string, force bool) []string {
+	flag := "-d"
+	if force {
+		flag = "-D"
+	}
+	return []string{c.GitBin(), "branch", flag, "--", branch}
+}
+
+// BranchDelete deletes branch in repoDir. If force is true, it uses -D instead of -d.
+func (c *Command) BranchDelete(ctx context.Context, repoDir, branch string, force bool, stderr io.Writer) error {
+	if err := validateBranchName(branch); err != nil {
+		return err
+	}
+	return c.Run(ctx, repoDir, c.BranchDeleteCmd(branch, force)[1:], stderr, stderr)
+}
+
+
 // WorktreePruneCmd constructs argv for "git worktree prune [--dry-run]".
 func (c *Command) WorktreePruneCmd(dryRun bool) []string {
 	if dryRun {

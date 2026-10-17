@@ -207,8 +207,15 @@ func RunWorktreeRemove(
 	if err := g.WorktreeRemove(runCtx, repoRoot, wtPath, a.Force, a.NoForce, stderr); err != nil {
 		return fmt.Errorf("worktree remove: %w", err)
 	}
+	if a.DeleteBranch || a.ForceDeleteBranch {
+		force := a.ForceDeleteBranch || a.Force
+		if err := g.BranchDelete(runCtx, repoRoot, a.Branch, force, stderr); err != nil {
+			return fmt.Errorf("worktree remove: branch delete: %w", err)
+		}
+	}
 	return nil
 }
+
 
 // RunWorktreePrune executes the "worktree prune" subcommand logic.
 func RunWorktreePrune(

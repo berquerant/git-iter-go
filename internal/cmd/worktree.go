@@ -174,8 +174,10 @@ and print the worktree's absolute path to stdout.`,
 // NewWorktreeRemoveCmd returns the "worktree remove" (aliases: "r", "rm") sub-command.
 func NewWorktreeRemoveCmd() *cobra.Command {
 	var (
-		force   bool
-		noForce bool
+		force        bool
+		noForce      bool
+		deleteBranch bool
+		forceDelete  bool
 	)
 
 	cmd := &cobra.Command{
@@ -191,6 +193,8 @@ func NewWorktreeRemoveCmd() *cobra.Command {
 					Items: []Item{
 						{Term: "-f, --force", Desc: "force removal even with untracked or modified files"},
 						{Term: "--no-force", Desc: "do not force removal"},
+						{Term: "-d, --delete", Desc: "delete the local branch after removing worktree (-d, or -D if -f is set)"},
+						{Term: "-D", Desc: "force-delete the local branch and force-remove the worktree"},
 					},
 				},
 			},
@@ -203,11 +207,23 @@ func NewWorktreeRemoveCmd() *cobra.Command {
 					Desc:    "Force-remove the worktree for branch feat-1",
 					Command: "git-iter -r /repos worktree remove -f feat-1",
 				},
+				{
+					Desc:    "Remove the worktree and delete the merged branch feat-1",
+					Command: "git-iter -r /repos worktree remove -d feat-1",
+				},
+				{
+					Desc:    "Force-remove the worktree and force-delete the branch feat-1",
+					Command: "git-iter -r /repos worktree remove -D feat-1",
+				},
 			},
 		}.Build(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := ConfigFromContext(cmd.Context())
-			rmArgs, err := ParseWorktreeRemoveArgs(args, force, noForce)
+			// Root persistent flag uses shorthand -d for --dirty-only.
+			// To avoid pflag shorthand collision panic while supporting -d for --delete,
+			// check whether -d/--dirty-only was passed on the command line.
+			isDelete := deleteBranch || (cmd.Flag("dirty-only") != nil && cmd.Flag("dirty-only").Changed)
+			rmArgs, err := ParseWorktreeRemoveArgs(args, force, noForce, isDelete, forceDelete)
 			if err != nil {
 				return err
 			}
@@ -231,9 +247,15 @@ func NewWorktreeRemoveCmd() *cobra.Command {
 		"force removal even if worktree is dirty or has untracked files")
 	cmd.Flags().BoolVar(&noForce, "no-force", false,
 		"do not force removal")
+	cmd.Flags().BoolVar(&deleteBranch, "delete", false,
+		"delete the local branch after removing worktree (-d, or -D if -f is set)")
+	cmd.Flags().BoolVarP(&forceDelete, "force-delete", "D", false,
+		"force-delete the local branch and force-remove the worktree")
+
 
 	return cmd
 }
+
 
 // NewWorktreePruneCmd returns the "worktree prune" (alias: "p") sub-command.
 func NewWorktreePruneCmd() *cobra.Command {

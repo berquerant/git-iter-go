@@ -50,22 +50,32 @@ func ParseWorktreeAddArgs(args []string, newBranch string) (WorktreeAddArgs, err
 
 // WorktreeRemoveArgs is the parsed argument set for "worktree remove".
 type WorktreeRemoveArgs struct {
-	Branch  string
-	Force   bool
-	NoForce bool
+	Branch            string
+	Force             bool
+	NoForce           bool
+	DeleteBranch      bool
+	ForceDeleteBranch bool
 }
 
 // ParseWorktreeRemoveArgs parses raw cobra args and flags into WorktreeRemoveArgs.
-func ParseWorktreeRemoveArgs(args []string, force, noForce bool) (WorktreeRemoveArgs, error) {
+// If forceDeleteBranch is true, Force and DeleteBranch are also set to true.
+func ParseWorktreeRemoveArgs(args []string, force, noForce, deleteBranch, forceDeleteBranch bool) (WorktreeRemoveArgs, error) {
 	if len(args) != 1 {
 		return WorktreeRemoveArgs{}, fmt.Errorf("worktree remove requires exactly 1 branch argument, got %d", len(args))
 	}
+	if forceDeleteBranch {
+		force = true
+		deleteBranch = true
+	}
 	return WorktreeRemoveArgs{
-		Branch:  args[0],
-		Force:   force,
-		NoForce: noForce,
+		Branch:            args[0],
+		Force:             force,
+		NoForce:           noForce,
+		DeleteBranch:      deleteBranch,
+		ForceDeleteBranch: forceDeleteBranch,
 	}, nil
 }
+
 
 // WorktreePruneArgs is the parsed argument set for "worktree prune".
 type WorktreePruneArgs struct {
