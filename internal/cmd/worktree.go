@@ -72,6 +72,9 @@ func NewWorktreeListCmd() *cobra.Command {
 		}.Build(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := ConfigFromContext(cmd.Context())
+			// Root persistent flag uses shorthand -a for --abs-path.
+			// To avoid pflag shorthand collision panic while supporting -a for --all,
+			// check whether -a/--abs-path was passed on the command line.
 			isAll := all || (cmd.Flag("abs-path") != nil && cmd.Flag("abs-path").Changed)
 			listArgs := ParseWorktreeListArgs(args, repoOnly, isAll)
 			if !listArgs.All {

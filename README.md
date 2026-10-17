@@ -180,11 +180,14 @@ git-iter -r ~/src fetch --default
 Worktrees for a repository `<repos-root>/<DIR>` are placed at `<worktree-root>/<DIR>/<BRANCH>`:
 
 ```bash
-# List all worktrees under worktree_root (default: <repos-root>/git-worktree)
+# List worktrees for the current repository
 git-iter -r ~/src wt list
 
+# List all worktrees across all repositories under worktree-root
+git-iter -r ~/src wt list -a
+
 # List unique main repository paths that have worktrees
-git-iter -r ~/src wt list --repo
+git-iter -r ~/src wt list --repo -a
 
 # Create a worktree for an existing branch in the current repository and print its path
 git-iter -r ~/src wt add feat/existing
