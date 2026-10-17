@@ -34,7 +34,7 @@ It supports parallel execution controls, per-process timeouts, fail-fast behavio
   - `fetch`: Fetch with optional default branch restriction (`-s, --default`).
   - `list` (`ls`): List matching repository paths.
   - `get`: Resolve or clone a repository by URI under `--repos-root`, or list repository paths when URI is omitted.
-  - `worktree` (`wt`): Manage git worktrees across repositories (`list`, `add`, `remove`, `prune`).
+  - `worktree` (`wt`): Manage git worktrees across repositories (`list`, `add -b`, `remove -f`, `prune --all --dry-run`).
   - `read`: Execute commands for repository paths fed via stdin.
   - `mcp`: Model Context Protocol server over stdio for LLM integration.
 
@@ -194,6 +194,9 @@ git-iter -r ~/src wt add -b feat/new origin/main
 
 # Remove a worktree by branch name for the current repository
 git-iter -r ~/src wt remove feat/new
+
+# Force-remove a worktree even if dirty or containing untracked files
+git-iter -r ~/src wt remove -f feat/new
 
 # Prune worktrees merged into the default branch for the current repository
 git-iter -r ~/src wt prune
