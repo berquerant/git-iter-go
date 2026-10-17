@@ -32,6 +32,14 @@ func FindRepoRoot(dir string) (string, error) {
 	}
 }
 
+func strictRelPath(base, target string) (string, bool) {
+	rel, err := filepath.Rel(base, target)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return rel, true
+}
+
 // ResolveRepoRelPath resolves the relative path of the git repository containing repoDir
 // with respect to reposRoot (i.e. DIR in repos_root/DIR).
 func ResolveRepoRelPath(reposRoot, repoDir string) (string, error) {
@@ -46,8 +54,8 @@ func ResolveRepoRelPath(reposRoot, repoDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	rel, err := filepath.Rel(absRoot, repoRoot)
-	if err != nil || rel == "." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+	rel, ok := strictRelPath(absRoot, repoRoot)
+	if !ok {
 		return "", fmt.Errorf("repository %q is not under repos-root %q", repoRoot, absRoot)
 	}
 	return rel, nil
@@ -111,8 +119,8 @@ func ResolveMainRepoFromWorktree(reposRoot, worktreeRoot, wtPath string) (string
 		return "", "", fmt.Errorf("resolve worktree path: %w", err)
 	}
 
-	relWT, err := filepath.Rel(absWorktreeRoot, absWT)
-	if err != nil || relWT == "." || strings.HasPrefix(relWT, ".."+string(filepath.Separator)) || relWT == ".." {
+	relWT, ok := strictRelPath(absWorktreeRoot, absWT)
+	if !ok {
 		return "", "", fmt.Errorf("worktree %q is not under worktree-root %q", absWT, absWorktreeRoot)
 	}
 

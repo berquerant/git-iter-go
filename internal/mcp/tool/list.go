@@ -32,15 +32,7 @@ func listRepositories(ctx context.Context, cfg *config.Config, discovery RepoDis
 		return nil, fmt.Errorf("find repositories: %w", err)
 	}
 
-	repos := make([]output.RepoResult, len(paths))
-	for i, p := range paths {
-		repos[i] = output.RepoResult{
-			RepoAbsPath: p,
-			RepoRelPath: output.RelPath(root, p),
-		}
-	}
-
-	return repos, nil
+	return toRepoResults(root, paths), nil
 }
 
 // RegisterList registers the git_iter_list tool on the given MCP server.

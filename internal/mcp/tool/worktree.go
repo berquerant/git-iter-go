@@ -150,14 +150,7 @@ func RegisterWorktreeList(server *mcpsdk.Server, cfg *config.Config) {
 			relBase = reposRoot
 		}
 
-		res := make([]output.RepoResult, len(paths))
-		for i, p := range paths {
-			res[i] = output.RepoResult{
-				RepoAbsPath: p,
-				RepoRelPath: output.RelPath(relBase, p),
-			}
-		}
-		return nil, WorktreeListToolOutput{Repositories: res}, nil
+		return nil, WorktreeListToolOutput{Repositories: toRepoResults(relBase, paths)}, nil
 	})
 }
 
@@ -167,13 +160,6 @@ func RegisterWorktreeMutations(server *mcpsdk.Server, cfg *config.Config) {
 	registerWorktreeAdd(server, cfg)
 	registerWorktreeRemove(server, cfg)
 	registerWorktreePrune(server, cfg)
-}
-
-func gitCommandName(cfg *config.Config) string {
-	if cfg != nil {
-		return cfg.GitCommandOrFallback()
-	}
-	return ""
 }
 
 func runWorktreeTargetOp(
@@ -194,24 +180,17 @@ func runWorktreeTargetOp(
 	if err != nil {
 		return output.RepoResult{}, err
 	}
-	timeout, err := resolveTimeout(inTimeout, cfg)
+	runCtx, cancel, err := withResolvedTimeout(ctx, inTimeout, cfg)
 	if err != nil {
 		return output.RepoResult{}, err
 	}
-	runCtx := ctx
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		runCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
-	g := git.New(gitCommandName(cfg), nil)
+	defer cancel()
+
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	if err := op(runCtx, g, repoRoot, wtPath); err != nil {
 		return output.RepoResult{}, err
 	}
-	return output.RepoResult{
-		RepoAbsPath: wtPath,
-		RepoRelPath: output.RelPath(wtRoot, wtPath),
-	}, nil
+	return toRepoResult(wtRoot, wtPath), nil
 }
 
 func registerWorktreeAdd(server *mcpsdk.Server, cfg *config.Config) {
@@ -297,7 +276,7 @@ func registerWorktreePrune(server *mcpsdk.Server, cfg *config.Config) {
 			return nil, WorktreePruneToolOutput{}, err
 		}
 
-		gitCmd := gitCommandName(cfg)
+		gitCmd := cfg.GitCommandOrFallback()
 		pruneRunner := &runner.WorktreePruneRunner{
 			GitCommand:   gitCmd,
 			ReposRoot:    reposRoot,

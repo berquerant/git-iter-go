@@ -56,11 +56,7 @@ func applyStatusFilter(finder repo.Finder, cfg *config.Config, dirtyOnly, cleanO
 	if !dirtyOnly && !cleanOnly {
 		return finder
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewStatusFilterFinder(finder, g, dirtyOnly, cleanOnly)
 }
 
@@ -68,11 +64,7 @@ func applyDefaultBranchFilter(finder repo.Finder, cfg *config.Config, defaultOnl
 	if !defaultOnly && !notDefaultOnly {
 		return finder
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewDefaultBranchFilterFinder(finder, g, defaultOnly, notDefaultOnly)
 }
 
@@ -87,11 +79,7 @@ func applyBranchFilter(finder repo.Finder, cfg *config.Config, branch string) (r
 	if err != nil {
 		return nil, fmt.Errorf("invalid branch regex %q: %w", branch, err)
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewBranchFilterFinder(finder, g, re), nil
 }
 
@@ -106,11 +94,7 @@ func applyRemoteURLFilter(finder repo.Finder, cfg *config.Config, remoteURL stri
 	if err != nil {
 		return nil, fmt.Errorf("invalid remote_url regex %q: %w", remoteURL, err)
 	}
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	return repo.NewRemoteURLFilterFinder(finder, g, re), nil
 }
 
@@ -210,6 +194,33 @@ func resolveTimeout(inTimeout string, cfg *config.Config) (time.Duration, error)
 		return cfg.Timeout, nil
 	}
 	return 0, nil
+}
+
+func withResolvedTimeout(ctx context.Context, inTimeout string, cfg *config.Config) (context.Context, context.CancelFunc, error) {
+	timeout, err := resolveTimeout(inTimeout, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	if timeout > 0 {
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
+		return runCtx, cancel, nil
+	}
+	return ctx, func() {}, nil
+}
+
+func toRepoResult(root, absPath string) output.RepoResult {
+	return output.RepoResult{
+		RepoAbsPath: absPath,
+		RepoRelPath: output.RelPath(root, absPath),
+	}
+}
+
+func toRepoResults(root string, paths []string) []output.RepoResult {
+	res := make([]output.RepoResult, len(paths))
+	for i, p := range paths {
+		res[i] = toRepoResult(root, p)
+	}
+	return res
 }
 
 func buildProcessTasks(paths []string, root string, command []string) []output.Task {

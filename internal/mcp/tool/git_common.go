@@ -36,11 +36,7 @@ func executeGitCommandTool(ctx context.Context, cfg *config.Config, p gitCommand
 		return nil, err
 	}
 
-	gitCmd := ""
-	if cfg != nil {
-		gitCmd = cfg.GitCommandOrFallback()
-	}
-	g := git.New(gitCmd, nil)
+	g := git.New(cfg.GitCommandOrFallback(), nil)
 	cmd := p.commandFunc(g)
 
 	tasks := buildProcessTasks(paths, root, cmd)
