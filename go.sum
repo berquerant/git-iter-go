@@ -1,5 +1,5 @@
-github.com/berquerant/structconfig v0.12.0 h1:EYV5WuEgIM6UVyWuFSF5mBmWDnG7MCkCBMAw1p7CVog=
-github.com/berquerant/structconfig v0.12.0/go.mod h1:WM9dp576oeDpNmI9q8T04HeD1HudBZ+GrF0zDjOtZhs=
+github.com/berquerant/structconfig v0.13.0 h1:Ic2vQecRAFFRcOZRL8ks94jecJo9muALOPWzKE/+tPo=
+github.com/berquerant/structconfig v0.13.0/go.mod h1:Dte98VLekA9Zse93TFqrODXK0y6RmAJ9HFIx5UvATFk=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
 github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=

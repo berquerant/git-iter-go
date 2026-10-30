@@ -3,7 +3,7 @@ module github.com/berquerant/git-iter-go
 go 1.27.3
 
 require (
-	github.com/berquerant/structconfig v0.12.0
+	github.com/berquerant/structconfig v0.13.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
