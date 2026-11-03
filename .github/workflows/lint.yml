@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        uses: jdx/mise-action@v5.2.4
       - name: Run Lint
         run: mise run lint
 
@@ -32,7 +32,7 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     steps:
-      - uses: berquerant/govulncheck-action@7c7f559180aca72a1badcead05a3d5d81fc95c30 # v1.0.3
+      - uses: berquerant/govulncheck-action@v1.0.3
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
