@@ -6,14 +6,14 @@ workflows:
     '.github/workflows/lint.yml':
         - 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
         - 'berquerant/govulncheck-action@v1.0.3'
-        - 'jdx/mise-action@v5.2.6'
+        - 'jdx/mise-action@v5.2.7'
     '.github/workflows/release.yml':
         - 'actions/checkout@v7.0.1'
         - 'goreleaser/goreleaser-action@v7.3.0'
-        - 'jdx/mise-action@v5.2.6'
+        - 'jdx/mise-action@v5.2.7'
     '.github/workflows/test.yml':
         - 'actions/checkout@v7.0.1'
-        - 'jdx/mise-action@v5.2.6'
+        - 'jdx/mise-action@v5.2.7'
 dependencies:
     'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1':
         ref: 'v7.0.1'
@@ -43,8 +43,8 @@ dependencies:
         commit: 'sha1-a4f02ab5355a589de60d917a659ce617ed19b3de'
         owner_id: 24697112
         repo_id: 209873006
-    'jdx/mise-action@v5.2.6':
-        ref: 'v5.2.6'
-        commit: 'sha1-f5be966e4a917d54244728e6a5fdcd1d93a35e6c'
+    'jdx/mise-action@v5.2.7':
+        ref: 'v5.2.7'
+        commit: 'sha1-b44d12e7d0d8ee7461bb893e1b1993500433185b'
         owner_id: 216188
         repo_id: 738284564
