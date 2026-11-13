@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@v5.2.6
+        uses: jdx/mise-action@v5.2.7
       - name: Run Build
         run: mise run build
 
@@ -37,6 +37,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup mise
-        uses: jdx/mise-action@v5.2.6
+        uses: jdx/mise-action@v5.2.7
       - name: Run Test
         run: mise run test
