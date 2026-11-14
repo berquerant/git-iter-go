@@ -1,8 +1,8 @@
 ## github.com/berquerant/structconfig
 
 * Name: github.com/berquerant/structconfig
-* Version: v0.12.0
-* License: [MIT](https://github.com/berquerant/structconfig/blob/v0.12.0/LICENSE)
+* Version: v0.13.0
+* License: [MIT](https://github.com/berquerant/structconfig/blob/v0.13.0/LICENSE)
 
 ```
 MIT License
@@ -747,8 +747,8 @@ SOFTWARE.
 ## github.com/spf13/pflag
 
 * Name: github.com/spf13/pflag
-* Version: v1.0.10
-* License: [BSD-3-Clause](https://github.com/spf13/pflag/blob/v1.0.10/LICENSE)
+* Version: v1.1.0
+* License: [BSD-3-Clause](https://github.com/spf13/pflag/blob/v1.1.0/LICENSE)
 
 ```
 Copyright (c) 2012 Alex Ogier. All rights reserved.
@@ -886,8 +886,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## golang.org/x/sync
 
 * Name: golang.org/x/sync
-* Version: v0.24.0
-* License: [BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.24.0:LICENSE)
+* Version: v0.25.0
+* License: [BSD-3-Clause](https://cs.opensource.google/go/x/sync/+/v0.25.0:LICENSE)
 
 ```
 Copyright 2009 The Go Authors.
