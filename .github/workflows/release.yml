@@ -7,29 +7,17 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
-    timeout-minutes: 10
     permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: "false"
-      - name: Setup mise
-        uses: jdx/mise-action@v5.2.7
-        with:
-          cache: false
-      - name: CI
-        run: mise run
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7.3.0
-        with:
-          version: '~> v2'
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION_PACKAGE: "github.com/berquerant/git-iter-go/version"
+      contents: write # create GitHub releases and upload release assets
+    uses: berquerant/reusable-workflows/.github/workflows/goreleaser-release.yml@v0.3.0
+    with:
+      setup-mode: mise
+      pre-release-command: mise run
+      version-package: github.com/berquerant/git-iter-go/version
+      timeout-minutes: 10
