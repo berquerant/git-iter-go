@@ -18,7 +18,7 @@ jobs:
   ci:
     permissions:
       contents: read # checkout repository for Go CI
-    uses: berquerant/reusable-workflows/.github/workflows/go-mise-ci.yml@v0.5.0
+    uses: berquerant/reusable-workflows/.github/workflows/go-mise-ci.yml@v0.10.1
     with:
       lint-command: mise run lint
       test-command: mise run test
@@ -28,4 +28,4 @@ jobs:
   actions-lock-verify:
     permissions:
       contents: read # checkout repository and verify actions.lock
-    uses: berquerant/reusable-workflows/.github/workflows/actions-lock-verify.yml@v0.5.0
+    uses: berquerant/reusable-workflows/.github/workflows/actions-lock-verify.yml@v0.10.1
